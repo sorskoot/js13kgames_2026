@@ -1,0 +1,34 @@
+{
+    "name": "js13kgames_2026",
+    "version": "1.0.0",
+    "description": "JS13KGames 2026",
+    "main": "index.js",
+    "type": "module",
+    "scripts": {
+        "dev": "node scripts/build.ts dev",
+        "build": "node scripts/build.ts prod",
+        "lint": "tsc --noEmit"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/sorskoot/js13kgames_2026.git"
+    },
+    "keywords": [
+        "js13kgames",
+        "game",
+        "playcanvas"
+    ],
+    "author": "Sorskoot",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/sorskoot/js13kgames_2026/issues"
+    },
+    "homepage": "https://github.com/sorskoot/js13kgames_2026#readme",
+    "dependencies": {},
+    "devDependencies": {
+        "playcanvas": "^2.21.4",
+        "@types/node": "^26.2.0",
+        "esbuild": "^0.28.2",
+        "typescript": "^7.0.2"
+    }
+}

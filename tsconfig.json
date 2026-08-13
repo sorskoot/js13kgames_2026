@@ -1,0 +1,27 @@
+{
+    "compilerOptions": {
+        "forceConsistentCasingInFileNames": true,
+        "pretty": true,
+        "allowJs": true,
+        "strict": true,
+        "noEmit": true,
+        "noImplicitAny": true,
+        "noImplicitOverride": true,
+        "strictNullChecks": true,
+        "target": "esnext",
+        "module": "nodenext",
+        "resolveJsonModule": true,
+        "moduleResolution": "nodenext",
+        "outDir": "dist",
+        "lib": ["esnext", "dom"],
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "types": ["playcanvas"]
+    },
+    "exclude": ["node_modules"],
+    "include": ["src/**/*", "src/**/.vert", "src/**/.frag"],
+    "typedocOptions": {
+        "entryPoints": ["./src/index.ts"],
+        "out": "docs"
+    }
+}
