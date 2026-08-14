@@ -16,10 +16,10 @@
         "lib": ["esnext", "dom"],
         "esModuleInterop": true,
         "skipLibCheck": true,
-        "types": ["playcanvas"]
+        "types": ["playcanvas", "node", "webxr"]
     },
     "exclude": ["node_modules"],
-    "include": ["src/**/*", "src/**/.vert", "src/**/.frag"],
+    "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/.vert", "src/**/.frag"],
     "typedocOptions": {
         "entryPoints": ["./src/index.ts"],
         "out": "docs"

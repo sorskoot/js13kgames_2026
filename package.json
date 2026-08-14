@@ -24,11 +24,11 @@
         "url": "https://github.com/sorskoot/js13kgames_2026/issues"
     },
     "homepage": "https://github.com/sorskoot/js13kgames_2026#readme",
-    "dependencies": {},
     "devDependencies": {
-        "playcanvas": "^2.21.4",
         "@types/node": "^26.2.0",
+        "@types/webxr": "^0.5.24",
         "esbuild": "^0.28.2",
+        "playcanvas": "^2.21.4",
         "typescript": "^7.0.2"
     }
 }

@@ -2,3 +2,38 @@ body {
     margin: 0;
     overflow: hidden;
 }
+
+#button-container {
+    display: flex;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    align-content: flex-end;
+    align-items: flex-end;
+    justify-content: space-around;
+}
+
+.button {
+    width: 250px;
+    background-color: #242b4a;
+    text-align: center;
+    line-height: 70px;
+    font-family: monospace;
+    font-size: 3em;
+    font-weight: 900;
+    margin-bottom: 35px;
+    border-radius: 35px;
+    border: 5px solid #dfeded;
+    color: #dfeded;
+    cursor: default;
+}
+
+.button:hover {
+    cursor: pointer;
+    background-color: #4d6a94;
+}
+
+.none {
+    display: none;
+}

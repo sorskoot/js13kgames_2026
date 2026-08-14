@@ -1,6 +1,7 @@
 import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
+import {removePlaycanvasImportPlugin} from './plugins/remove-playcanvas.ts';
 
 type BuildMode = 'dev' | 'prod';
 
@@ -100,6 +101,23 @@ async function build(mode: BuildMode) {
         minify: mode === 'prod',
         external: ['node:worker_threads', 'worker_threads', 'playcanvas'],
         logLevel: 'info',
+        plugins: [
+            removePlaycanvasImportPlugin,
+            {
+                name: 'copy-assets',
+                setup(build) {
+                    build.onEnd(() => {
+                        prepareDist(mode);
+                    });
+                },
+            },
+            {
+                name: 'open-on-quest',
+                setup(build) {
+                    build.onEnd(() => {});
+                },
+            },
+        ],
     });
 
     if (mode === 'dev') {
@@ -118,6 +136,7 @@ async function build(mode: BuildMode) {
             logLevel: 'info',
             metafile: true,
             plugins: [
+                removePlaycanvasImportPlugin,
                 {
                     name: 'copy-assets',
                     setup(build) {
