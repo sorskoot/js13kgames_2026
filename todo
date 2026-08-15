@@ -1,0 +1,25 @@
+# Unicorns and Rainbows
+
+@critical:
+    ☐ Does the idea with a horn on the head of the player in VR work?
+
+Must Have:
+    ☐ Shooting mechanic
+    ☐ Render gray spheres to shoot
+    ☐ Mechanic to change color of objects over time
+    ☐ 5 trees to grow fruit on
+        Right now they can be just a cube for the trunk and a cylinder/circle for the leaves
+        
+
+Should Have:
+    ☐ Particles
+    ☐ Sound effects
+    ☐ Better scene
+
+Could Have:
+    ☐ Music
+    ☐ Sprites or textures for the spheres
+
+Would Like:
+
+Bugs:

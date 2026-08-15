@@ -27,16 +27,29 @@ export class Game extends pc.Script {
         light.setEulerAngles(45, 30, 0);
         this.app.root.addChild(light);
 
-        const cube = new pc.Entity('cube');
-        cube.addComponent('render', {
-            type: 'box',
+        const horn = new pc.Entity('horn');
+        horn.addComponent('render', {
+            type: 'cone',
             material: new pc.StandardMaterial(),
         });
-        (cube.render!.material as pc.StandardMaterial).diffuse = new pc.Color(0.25, 0.85, 0.95);
-        cube.render!.material.update();
-        this.app.root.addChild(cube);
-        const cubeScripts = cube.addComponent('script')! as pc.ScriptComponent;
-        cubeScripts.create('rotate');
+        (horn.render!.material as pc.StandardMaterial).diffuse = new pc.Color(1, 1, 0);
+        horn.render!.material.update();
+        horn.rotateLocal(-90, 0, 0);
+        horn.setLocalScale(0.15, 1, 0.15);
+        horn.setLocalPosition(0, .25, -1);
+        this.cameraEntity.addChild(horn);
+
+        // const cube = new pc.Entity('cube');
+        // cube.addComponent('render', {
+        //     type: 'box',
+        //     material: new pc.StandardMaterial(),
+        // });
+        // (cube.render!.material as pc.StandardMaterial).diffuse = new pc.Color(0.25, 0.85, 0.95);
+        // cube.render!.material.update();
+        // cube.setPosition(0, 0, -2);
+        // this.app.root.addChild(cube);
+        // const cubeScripts = cube.addComponent('script')! as pc.ScriptComponent;
+        // cubeScripts.create('rotate');
     }
 
     startXR() {

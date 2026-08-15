@@ -1,7 +1,6 @@
 import * as pc from 'playcanvas';
-import './components/Game.js';
 import {registerComponents} from './registerComponents.js';
-import {Game} from './components/Game.js';
+import {Game} from './components/game.js';
 
 export class GameManager {
     public app: pc.Application;
@@ -26,6 +25,7 @@ export class GameManager {
         this.setUpButtons();
         this.app.start();
     }
+    
     declare private htmlEnterVRButton: HTMLElement;
     declare private htmlPlayButton: HTMLElement;
     declare private htmlRestartButton: HTMLElement;
