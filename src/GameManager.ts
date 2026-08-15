@@ -1,6 +1,6 @@
 import * as pc from 'playcanvas';
 import {registerComponents} from './registerComponents.js';
-import {Game} from './components/game.js';
+import {Game} from './scripts/game.js';
 
 export class GameManager {
     public app: pc.Application;

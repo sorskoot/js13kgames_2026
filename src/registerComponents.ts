@@ -1,5 +1,5 @@
-import {Game} from './components/game.js';
-import {Rotate} from './components/rotate.js';
+import {Game} from './scripts/game.js';
+import {Rotate} from './scripts/rotate.js';
 
 export function registerComponents(app: pc.Application) {
     app.scripts.add(Rotate);
