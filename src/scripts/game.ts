@@ -39,6 +39,12 @@ export class Game extends pc.Script {
         horn.setLocalPosition(0, 0.2, -0.25);
         this.cameraEntity.addChild(horn);
 
+        const tree = new pc.Entity('tree');
+        tree.addComponent('script');
+        tree.script!.create('tree');
+        this.app.root.addChild(tree);
+        tree.setPosition(0, 0, -4);
+
         // const cube = new pc.Entity('cube');
         // cube.addComponent('render', {
         //     type: 'box',
