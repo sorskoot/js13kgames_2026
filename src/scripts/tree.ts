@@ -10,7 +10,7 @@ export class Tree extends pc.Script {
         });
         (this.entity.render!.material as pc.StandardMaterial).diffuse = new pc.Color(0.25, 0.85, 0.95);
         this.entity.render!.material.update();
-        console.log(this.entity);
+        this.entity.setLocalScale(0.15, 2, 0.15);
     }
 
     update(dt: number) {}

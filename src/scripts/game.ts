@@ -39,6 +39,16 @@ export class Game extends pc.Script {
         horn.setLocalPosition(0, 0.2, -0.25);
         this.cameraEntity.addChild(horn);
 
+        const groundPlane = new pc.Entity('ground');
+        groundPlane.addComponent('render', {
+            type: 'plane',
+            material: new pc.StandardMaterial()
+        });
+        (groundPlane.render!.material as pc.StandardMaterial).diffuse = new pc.Color(0.25, 0.85, 0.95);
+        groundPlane.render!.material.update();
+        groundPlane.setLocalScale(10, 1, 10);
+        this.app.root.addChild(groundPlane);
+
         const tree = new pc.Entity('tree');
         tree.addComponent('script');
         tree.script!.create('tree');
