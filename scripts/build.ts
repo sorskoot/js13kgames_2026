@@ -1,21 +1,24 @@
 import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
+import {processHtml} from './plugins/process-html.ts';
 import {removePlaycanvasImportPlugin} from './plugins/remove-playcanvas.ts';
 
 type BuildMode = 'dev' | 'prod';
 
 const DEV_PORT = 5379;
+const DEVELOPMENT_PLAYCANVAS_URL = 'playcanvas.js';
+const PRODUCTION_PLAYCANVAS_URL = 'https://play.js13kgames.com/2026/webxr/playcanvas.js';
 
 function parseMode() {
     const args = process.argv.slice(2);
-    const modeArg = args.find((value) => value === 'dev' || value === 'prod');
+    const modeArg = args.find(value => value === 'dev' || value === 'prod');
 
     if (modeArg) {
         return modeArg as BuildMode;
     }
 
-    const longFlagIndex = args.findIndex((value) => value === '--mode');
+    const longFlagIndex = args.findIndex(value => value === '--mode');
     if (longFlagIndex >= 0 && args[longFlagIndex + 1]) {
         const nextArg = args[longFlagIndex + 1];
         if (nextArg === 'dev' || nextArg === 'prod') {
@@ -23,7 +26,7 @@ function parseMode() {
         }
     }
 
-    const namedArg = args.find((value) => value.startsWith('--mode='));
+    const namedArg = args.find(value => value.startsWith('--mode='));
     if (namedArg) {
         const [, value] = namedArg.split('=');
         if (value === 'dev' || value === 'prod') {
@@ -34,50 +37,36 @@ function parseMode() {
     return 'dev';
 }
 
-function readRootHtmlTemplate() {
-    const htmlPath = path.join(process.cwd(), 'index.html');
-
-    if (!fs.existsSync(htmlPath)) {
-        throw new Error('Missing root index.html');
-    }
-
-    return fs.readFileSync(htmlPath, 'utf8');
-}
-
-function stripUnneededHtml(html: string) {
-    return html
-        .replace(/<!--.*?-->/gs, '')
-        .replace(/<script\b[^>]*>.*?<\/script>/gis, '')
-        .replace(/>\s+</g, '><')
-        .replace(/\s{2,}/g, ' ')
-        .trim();
-}
-
-function buildHtmlContent(template: string, mode: BuildMode) {
-    const bodyTag = '</body>';
-    const bodyIndex = template.toLowerCase().lastIndexOf(bodyTag.toLowerCase());
-
-    if (bodyIndex === -1) {
-        throw new Error('index.html is missing a </body> tag');
-    }
-
-    const beforeBody = template.slice(0, bodyIndex).trim();
-    const afterBody = template.slice(bodyIndex);
-    return `${beforeBody}${afterBody}`;
-}
-
-function prepareDist(mode: BuildMode) {
+function copyStylesheet() {
     if (!fs.existsSync('dist')) {
         fs.mkdirSync('dist', {recursive: true});
     }
 
-    const template = mode !== 'dev' ? stripUnneededHtml(readRootHtmlTemplate()) : readRootHtmlTemplate();
-
-    fs.writeFileSync(path.join('dist', 'index.html'), buildHtmlContent(template, mode));
-
     if (fs.existsSync('src/index.css')) {
         fs.copyFileSync('src/index.css', path.join('dist', 'style.css'));
     }
+}
+
+function createPlugins(mode: BuildMode): esbuild.Plugin[] {
+    return [
+        removePlaycanvasImportPlugin,
+        processHtml({
+            mode,
+            templatePath: path.join(process.cwd(), 'index.html'),
+            outputPath: path.join(process.cwd(), 'dist', 'index.html'),
+            developmentLibraryPath: path.join(process.cwd(), 'lib', 'playcanvas.js'),
+            developmentLibraryUrl: DEVELOPMENT_PLAYCANVAS_URL,
+            productionLibraryUrl: PRODUCTION_PLAYCANVAS_URL
+        }),
+        {
+            name: 'copy-assets',
+            setup(build) {
+                build.onEnd(() => {
+                    copyStylesheet();
+                });
+            }
+        }
+    ];
 }
 
 function writeMetafile(result: esbuild.BuildResult) {
@@ -89,35 +78,19 @@ function writeMetafile(result: esbuild.BuildResult) {
 }
 
 async function build(mode: BuildMode) {
-    prepareDist(mode);
+    copyStylesheet();
 
     const result = await esbuild.build({
         entryPoints: ['src/main.ts'],
         bundle: true,
-        outfile: 'dist/bundle.js',
+        outfile: 'dist/b.js',
         format: 'esm',
         target: 'es2022',
         sourcemap: mode === 'dev',
         minify: mode === 'prod',
         external: ['node:worker_threads', 'worker_threads', 'playcanvas'],
         logLevel: 'info',
-        plugins: [
-            removePlaycanvasImportPlugin,
-            {
-                name: 'copy-assets',
-                setup(build) {
-                    build.onEnd(() => {
-                        prepareDist(mode);
-                    });
-                },
-            },
-            {
-                name: 'open-on-quest',
-                setup(build) {
-                    build.onEnd(() => {});
-                },
-            },
-        ],
+        plugins: createPlugins(mode)
     });
 
     if (mode === 'dev') {
@@ -125,7 +98,7 @@ async function build(mode: BuildMode) {
         const ctx = await esbuild.context({
             entryPoints: ['src/main.ts'],
             bundle: true,
-            outfile: 'dist/bundle.js',
+            outfile: 'dist/b.js',
             format: 'esm',
             target: 'es2022',
             sourcemap: true,
@@ -135,17 +108,7 @@ async function build(mode: BuildMode) {
             external: ['node:worker_threads', 'worker_threads', 'playcanvas'],
             logLevel: 'info',
             metafile: true,
-            plugins: [
-                removePlaycanvasImportPlugin,
-                {
-                    name: 'copy-assets',
-                    setup(build) {
-                        build.onEnd(() => {
-                            prepareDist(mode);
-                        });
-                    },
-                },
-            ],
+            plugins: createPlugins(mode)
         });
 
         const initialResult = await ctx.rebuild();
@@ -156,7 +119,7 @@ async function build(mode: BuildMode) {
         const serveResult = (await ctx.serve({
             servedir: 'dist',
             port: DEV_PORT,
-            host: '0.0.0.0',
+            host: '0.0.0.0'
         })) as {host?: string; port: number};
 
         const host = serveResult.host ?? 'localhost';
@@ -172,7 +135,7 @@ async function build(mode: BuildMode) {
 
 const mode = parseMode();
 
-build(mode).catch((err) => {
+build(mode).catch(err => {
     console.error(`${mode} build failed:`, err);
     process.exit(1);
 });

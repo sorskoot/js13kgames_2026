@@ -1,12 +1,12 @@
 import type {Plugin} from 'esbuild';
+import fs from 'node:fs/promises';
 
 const PLAYCANVAS_NAMESPACE_IMPORT = /^\s*import\s+\*\s+as\s+pc\s+from\s+["']playcanvas["'];?\s*$/gm;
 
 export const removePlaycanvasImportPlugin: Plugin = {
     name: 'remove-playcanvas-import',
     setup(build) {
-        build.onLoad({filter: /\.[cm]?[jt]sx?$/}, async (args) => {
-            const fs = await import('node:fs/promises');
+        build.onLoad({filter: /\.[cm]?[jt]sx?$/}, async args => {
             let contents = await fs.readFile(args.path, 'utf8');
 
             if (!PLAYCANVAS_NAMESPACE_IMPORT.test(contents)) {
@@ -25,5 +25,5 @@ export const removePlaycanvasImportPlugin: Plugin = {
 
             return {contents, loader};
         });
-    },
+    }
 };

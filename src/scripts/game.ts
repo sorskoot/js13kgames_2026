@@ -13,7 +13,7 @@ export class Game extends pc.Script {
 
         this.cameraEntity = new pc.Entity('camera');
         this.camera = this.cameraEntity.addComponent('camera', {
-            clearColor: new pc.Color(0.08, 0.12, 0.18),
+            clearColor: new pc.Color(0.08, 0.12, 0.18)
         }) as pc.CameraComponent;
         this.cameraEntity.setPosition(0, 0, 4);
         this.app.root.addChild(this.cameraEntity);
@@ -22,7 +22,7 @@ export class Game extends pc.Script {
         light.addComponent('light', {
             type: 'directional',
             color: new pc.Color(1, 0.95, 0.85),
-            intensity: 2,
+            intensity: 2
         });
         light.setEulerAngles(45, 30, 0);
         this.app.root.addChild(light);
@@ -30,13 +30,13 @@ export class Game extends pc.Script {
         const horn = new pc.Entity('horn');
         horn.addComponent('render', {
             type: 'cone',
-            material: new pc.StandardMaterial(),
+            material: new pc.StandardMaterial()
         });
         (horn.render!.material as pc.StandardMaterial).diffuse = new pc.Color(1, 1, 0);
         horn.render!.material.update();
         horn.rotateLocal(-90, 0, 0);
         horn.setLocalScale(0.15, 1, 0.15);
-        horn.setLocalPosition(0, .25, -1);
+        horn.setLocalPosition(0, 0.2, -0.25);
         this.cameraEntity.addChild(horn);
 
         // const cube = new pc.Entity('cube');
@@ -55,14 +55,14 @@ export class Game extends pc.Script {
     startXR() {
         // sound.InitAudio();
         this.camera.startXr(pc.XRTYPE_VR, pc.XRSPACE_LOCALFLOOR, {
-            callback: (err) => {
+            callback: err => {
                 if (err) {
                     console.error('WebXR Immersive VR failed to start: ' + err.message);
                     this.inVR = false;
                 } else {
                     this.inVR = true;
                 }
-            },
+            }
         });
     }
 
