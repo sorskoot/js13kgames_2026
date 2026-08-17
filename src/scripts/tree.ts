@@ -2,15 +2,33 @@ import * as pc from 'playcanvas';
 
 export class Tree extends pc.Script {
     static override scriptName = 'tree';
+    declare private trunk: pc.Entity;
+    declare private top: pc.Entity;
 
     initialize() {
-        this.entity.addComponent('render', {
+        this.trunk = new pc.Entity('tree-trunk');
+        this.top = new pc.Entity('tree-top');
+
+        this.trunk.addComponent('render', {
             type: 'cylinder',
             material: new pc.StandardMaterial()
         });
-        (this.entity.render!.material as pc.StandardMaterial).diffuse = new pc.Color(0.25, 0.85, 0.95);
-        this.entity.render!.material.update();
-        this.entity.setLocalScale(0.15, 2, 0.15);
+        (this.trunk.render!.material as pc.StandardMaterial).diffuse = new pc.Color(0.25, 0.15, 0.0);
+        this.trunk.render!.material.update();
+        this.trunk.setLocalScale(0.25, 2, 0.25);
+        this.trunk.setLocalPosition(0, 1, 0);
+
+        this.top.addComponent('render', {
+            type: 'sphere',
+            material: new pc.StandardMaterial()
+        });
+        (this.top.render!.material as pc.StandardMaterial).diffuse = new pc.Color(0.15, 0.45, 0.15);
+        this.top.render!.material.update();
+        this.top.setLocalScale(2, 2, 0.3);
+        this.top.setLocalPosition(0, 2, 0);
+
+        this.entity.addChild(this.trunk);
+        this.entity.addChild(this.top);
     }
 
     update(dt: number) {}

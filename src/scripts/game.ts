@@ -1,4 +1,6 @@
 import * as pc from 'playcanvas';
+import {addScript} from '../helpers/pcUtils.js';
+import {Tree} from './tree.js';
 
 export class Game extends pc.Script {
     static override scriptName = 'game';
@@ -13,7 +15,7 @@ export class Game extends pc.Script {
 
         this.cameraEntity = new pc.Entity('camera');
         this.camera = this.cameraEntity.addComponent('camera', {
-            clearColor: new pc.Color(0.08, 0.12, 0.18)
+            clearColor: new pc.Color(0.2, 1.0, 1.0)
         }) as pc.CameraComponent;
         this.cameraEntity.setPosition(0, 0, 4);
         this.app.root.addChild(this.cameraEntity);
@@ -44,16 +46,35 @@ export class Game extends pc.Script {
             type: 'plane',
             material: new pc.StandardMaterial()
         });
-        (groundPlane.render!.material as pc.StandardMaterial).diffuse = new pc.Color(0.25, 0.85, 0.95);
+        (groundPlane.render!.material as pc.StandardMaterial).diffuse = new pc.Color(0.05, 0.55, 0.35);
         groundPlane.render!.material.update();
         groundPlane.setLocalScale(10, 1, 10);
         this.app.root.addChild(groundPlane);
 
         const tree = new pc.Entity('tree');
-        tree.addComponent('script');
-        tree.script!.create('tree');
+        addScript<Tree>(tree, 'tree');
         this.app.root.addChild(tree);
         tree.setPosition(0, 0, -4);
+
+        const tree2 = new pc.Entity('tree');
+        addScript<Tree>(tree2, 'tree');
+        this.app.root.addChild(tree2);
+        tree2.setPosition(2, 0, -4);
+
+        const tree3 = new pc.Entity('tree');
+        addScript<Tree>(tree3, 'tree');
+        this.app.root.addChild(tree3);
+        tree3.setPosition(-2, 0, -4);
+
+        const tree4 = new pc.Entity('tree');
+        addScript<Tree>(tree4, 'tree');
+        this.app.root.addChild(tree4);
+        tree4.setPosition(4, 0, -4);
+
+        const tree5 = new pc.Entity('tree');
+        addScript<Tree>(tree5, 'tree');
+        this.app.root.addChild(tree5);
+        tree5.setPosition(-4, 0, -4);
 
         // const cube = new pc.Entity('cube');
         // cube.addComponent('render', {
