@@ -20,7 +20,6 @@ export class Controllers extends pc.Script {
 
         this.app.xr.input.on('select', inputSource => {
             // Player pulls the trigger on the VR controllers.
-            console.log('Primary action triggered by input source:', inputSource);
             this.app.root.fire('xr:onTrigger', inputSource);
         });
     }

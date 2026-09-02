@@ -1,7 +1,7 @@
 import * as pc from 'playcanvas';
-import {Fruit} from '../scripts/fruit.js';
+import {FruitController} from '../scripts/fruit-controller.js';
 
 export interface AppEvents {
     'xr:onTrigger': pc.XrInputSource;
-    'fruit:collected': Fruit;
+    'fruit:collected': FruitController;
 }

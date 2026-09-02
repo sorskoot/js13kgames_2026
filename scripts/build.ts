@@ -4,11 +4,14 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import {execFile} from 'node:child_process';
 import * as path from 'path';
+import {
+    metaQuestAdbPortForwardingPlugin,
+    type MetaQuestAdbPortForwardingPlugin
+} from './plugins/meta-quest-adb-port-forwarding.plugin.ts';
 import {processHtml} from './plugins/process-html.ts';
 import {removePlaycanvasImportPlugin} from './plugins/remove-playcanvas.ts';
 
 type BuildMode = 'dev' | 'prod';
-
 const DEV_PORT = 5379;
 const DEVELOPMENT_PLAYCANVAS_URL = 'playcanvas.js';
 const PRODUCTION_PLAYCANVAS_URL = 'https://play.js13kgames.com/2026/webxr/playcanvas.js';
@@ -46,7 +49,7 @@ function clearDist() {
     }
 }
 
-function createPlugins(mode: BuildMode): esbuild.Plugin[] {
+function createPlugins(mode: BuildMode, adbPlugin?: MetaQuestAdbPortForwardingPlugin): esbuild.Plugin[] {
     return [
         removePlaycanvasImportPlugin,
         processHtml({
@@ -57,6 +60,7 @@ function createPlugins(mode: BuildMode): esbuild.Plugin[] {
             developmentLibraryUrl: DEVELOPMENT_PLAYCANVAS_URL,
             productionLibraryUrl: PRODUCTION_PLAYCANVAS_URL
         }),
+        ...(adbPlugin ? [adbPlugin.plugin] : []),
         {
             name: 'copy-assets',
             setup(build) {
@@ -135,6 +139,7 @@ async function build(mode: BuildMode) {
 
     if (mode === 'dev') {
         console.log('Development build prepared. Starting watch server...');
+        const adbPlugin = metaQuestAdbPortForwardingPlugin({port: DEV_PORT});
         const ctx = await esbuild.context({
             entryPoints: ['src/main.ts'],
             bundle: true,
@@ -148,7 +153,7 @@ async function build(mode: BuildMode) {
             external: ['node:worker_threads', 'worker_threads', 'playcanvas'],
             logLevel: 'info',
             metafile: true,
-            plugins: createPlugins(mode)
+            plugins: createPlugins(mode, adbPlugin)
         });
 
         const initialResult = await ctx.rebuild();
@@ -166,10 +171,13 @@ async function build(mode: BuildMode) {
         const port = serveResult.port;
 
         console.log(`Development server running at http://${host}:${port}/`);
+        await adbPlugin.forward();
+
         return;
     } else {
         await createZip();
     }
+    // C:\\dev\\js13kgames_2026\\node_modules\\@miwt\\adb\\bin\\win\\adb.exe devices
 
     console.log('Production build complete.');
     return result;

@@ -3,6 +3,7 @@ import {addScript} from '../helpers/pcUtils.js';
 import {Tree} from './tree.js';
 import {Horn} from './horn.js';
 import {Controllers} from './controllers.js';
+import {FruitController} from './fruit-controller.js';
 
 export class Game extends pc.Script {
     static override scriptName = 'game';
@@ -11,6 +12,7 @@ export class Game extends pc.Script {
 
     declare private cameraEntity: pc.Entity;
     declare private camera: pc.CameraComponent;
+    declare private fruitController: FruitController;
 
     initialize() {
         this.app.scene.ambientLight = new pc.Color(0.2, 0.2, 0.2);
@@ -47,28 +49,32 @@ export class Game extends pc.Script {
         groundPlane.setLocalScale(10, 1, 10);
         this.app.root.addChild(groundPlane);
 
+        this.fruitController = addScript<FruitController>(this.app.root, 'fruit-controller');
+
         const tree = new pc.Entity('tree');
-        addScript<Tree>(tree, 'tree');
+        const treeScript = addScript<Tree>(tree, 'tree');
         this.app.root.addChild(tree);
+        treeScript.fruitController = this.fruitController;
+        treeScript.startSpawning();
         tree.setPosition(0, 0, -4);
 
         const tree2 = new pc.Entity('tree');
-        addScript<Tree>(tree2, 'tree');
+        const tree2Script = addScript<Tree>(tree2, 'tree');
         this.app.root.addChild(tree2);
         tree2.setPosition(2, 0, -4);
 
         const tree3 = new pc.Entity('tree');
-        addScript<Tree>(tree3, 'tree');
+        const tree3Script = addScript<Tree>(tree3, 'tree');
         this.app.root.addChild(tree3);
         tree3.setPosition(-2, 0, -4);
 
         const tree4 = new pc.Entity('tree');
-        addScript<Tree>(tree4, 'tree');
+        const tree4Script = addScript<Tree>(tree4, 'tree');
         this.app.root.addChild(tree4);
         tree4.setPosition(4, 0, -4);
 
         const tree5 = new pc.Entity('tree');
-        addScript<Tree>(tree5, 'tree');
+        const tree5Script = addScript<Tree>(tree5, 'tree');
         this.app.root.addChild(tree5);
         tree5.setPosition(-4, 0, -4);
 
@@ -83,6 +89,8 @@ export class Game extends pc.Script {
         // this.app.root.addChild(cube);
         // const cubeScripts = cube.addComponent('script')! as pc.ScriptComponent;
         // cubeScripts.create('rotate');
+
+        this.app.root.on('xr:onTrigger', this.shoot, this);
     }
 
     startXR() {
@@ -103,5 +111,9 @@ export class Game extends pc.Script {
         this.camera.endXr();
         // this.desktopPointer.enabled = true;
         this.inVR = false;
+    }
+
+    private shoot() {
+        console.log('Shoot!');
     }
 }
