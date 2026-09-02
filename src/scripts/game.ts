@@ -1,6 +1,8 @@
 import * as pc from 'playcanvas';
 import {addScript} from '../helpers/pcUtils.js';
 import {Tree} from './tree.js';
+import {Horn} from './horn.js';
+import {Controllers} from './controllers.js';
 
 export class Game extends pc.Script {
     static override scriptName = 'game';
@@ -19,6 +21,7 @@ export class Game extends pc.Script {
         }) as pc.CameraComponent;
         this.cameraEntity.setPosition(0, 0, 4);
         this.app.root.addChild(this.cameraEntity);
+        addScript<Controllers>(this.app.root, 'controllers');
 
         const light = new pc.Entity('light');
         light.addComponent('light', {
@@ -30,15 +33,8 @@ export class Game extends pc.Script {
         this.app.root.addChild(light);
 
         const horn = new pc.Entity('horn');
-        horn.addComponent('render', {
-            type: 'cone',
-            material: new pc.StandardMaterial()
-        });
-        (horn.render!.material as pc.StandardMaterial).diffuse = new pc.Color(1, 1, 0);
-        horn.render!.material.update();
-        horn.rotateLocal(-90, 0, 0);
-        horn.setLocalScale(0.15, 1, 0.15);
-        horn.setLocalPosition(0, 0.2, -0.25);
+        const hornScript = addScript<Horn>(horn, 'horn');
+        hornScript.wireUp(this.cameraEntity);
         this.cameraEntity.addChild(horn);
 
         const groundPlane = new pc.Entity('ground');

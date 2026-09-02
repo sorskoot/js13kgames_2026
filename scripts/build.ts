@@ -1,5 +1,8 @@
+//@ts-ignore For some reason the import gives an error in the editor, but it works... Trust me 😇
+import * as advzipPath from 'advzip-bin';
 import * as esbuild from 'esbuild';
 import * as fs from 'fs';
+import {execFile} from 'node:child_process';
 import * as path from 'path';
 import {processHtml} from './plugins/process-html.ts';
 import {removePlaycanvasImportPlugin} from './plugins/remove-playcanvas.ts';
@@ -37,13 +40,9 @@ function parseMode() {
     return 'dev';
 }
 
-function copyStylesheet() {
-    if (!fs.existsSync('dist')) {
-        fs.mkdirSync('dist', {recursive: true});
-    }
-
-    if (fs.existsSync('src/index.css')) {
-        fs.copyFileSync('src/index.css', path.join('dist', 'style.css'));
+function clearDist() {
+    if (fs.existsSync('dist')) {
+        fs.rmSync('dist', {recursive: true, force: true});
     }
 }
 
@@ -62,7 +61,7 @@ function createPlugins(mode: BuildMode): esbuild.Plugin[] {
             name: 'copy-assets',
             setup(build) {
                 build.onEnd(() => {
-                    copyStylesheet();
+                    // Keep this space for future asset copying
                 });
             }
         }
@@ -77,9 +76,50 @@ function writeMetafile(result: esbuild.BuildResult) {
     fs.writeFileSync(path.join('dist', 'metafile.json'), JSON.stringify(result.metafile, null, 2));
 }
 
-async function build(mode: BuildMode) {
-    copyStylesheet();
+async function createZip() {
+    // After minification, create a zip containing index.html and index.js
+    const distDir = path.resolve('dist');
+    const htmlPath = path.join(distDir, 'index.html');
+    const jsPath = path.join(distDir, 'b.js');
+    const outZip = path.join(distDir, 'Unicorn.zip');
 
+    return new Promise<number>((resolve, reject) => {
+        execFile(advzipPath.default, ['--add', '--shrink-insane', '--iter=50', outZip, htmlPath, jsPath], err => {
+            if (err) {
+                return reject(err);
+            }
+
+            const finalSize = fs.statSync(outZip).size;
+            printAndCheck(finalSize, outZip);
+            resolve(finalSize);
+        });
+    });
+}
+// Progress formatting and limit check
+const SIZE_LIMIT = 13 * 1024; // 13 KB = 13312 bytes
+function formatProgress(size: number, limit: number, width = 10) {
+    const pct = limit > 0 ? (size / limit) * 100 : 0;
+    const clamped = Math.max(0, Math.min(1, size / limit));
+    const filled = Math.floor(clamped * width);
+    const bar = '[' + '█'.repeat(filled) + '░'.repeat(width - filled) + ']';
+    return {bar, pct: pct.toFixed(1)};
+}
+
+function printAndCheck(size: number, zipPath: string) {
+    const {bar, pct} = formatProgress(size, SIZE_LIMIT, 10);
+    const remaining = SIZE_LIMIT - size;
+    const remainingText = remaining >= 0 ? `+${remaining} bytes remaining` : `-${Math.abs(remaining)} bytes over`;
+    const line = `${bar} ${pct}% of ${SIZE_LIMIT} bytes | ${remainingText}`;
+    if (size > SIZE_LIMIT) {
+        console.error(line);
+        throw new Error(`Archive exceeds ${SIZE_LIMIT} bytes limit (${size} bytes)`);
+    } else {
+        console.log(line);
+    }
+}
+
+async function build(mode: BuildMode) {
+    clearDist();
     const result = await esbuild.build({
         entryPoints: ['src/main.ts'],
         bundle: true,
@@ -127,6 +167,8 @@ async function build(mode: BuildMode) {
 
         console.log(`Development server running at http://${host}:${port}/`);
         return;
+    } else {
+        await createZip();
     }
 
     console.log('Production build complete.');

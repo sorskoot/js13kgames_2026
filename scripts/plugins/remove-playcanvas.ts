@@ -1,7 +1,7 @@
 import type {Plugin} from 'esbuild';
 import fs from 'node:fs/promises';
 
-const PLAYCANVAS_NAMESPACE_IMPORT = /^\s*import\s+\*\s+as\s+pc\s+from\s+["']playcanvas["'];?\s*$/gm;
+const PLAYCANVAS_NAMESPACE_IMPORT = /^\s*import\s+\*\s+as\s+pc\s+from\s+["']playcanvas["'];?\s*$/m;
 
 export const removePlaycanvasImportPlugin: Plugin = {
     name: 'remove-playcanvas-import',
