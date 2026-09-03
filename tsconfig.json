@@ -16,7 +16,10 @@
         "lib": ["esnext", "dom"],
         "esModuleInterop": true,
         "skipLibCheck": true,
-        "types": ["playcanvas", "node", "webxr"]
+        "types": ["playcanvas", "node", "webxr"],
+        "paths": {
+            "@/*": ["./src/*"]
+        }
     },
     "exclude": ["node_modules"],
     "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/.vert", "src/**/.frag"],

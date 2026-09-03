@@ -134,6 +134,9 @@ async function build(mode: BuildMode) {
         minify: mode === 'prod',
         external: ['node:worker_threads', 'worker_threads', 'playcanvas'],
         logLevel: 'info',
+        alias: {
+            '@': './src'
+        },
         plugins: createPlugins(mode)
     });
 
@@ -151,6 +154,9 @@ async function build(mode: BuildMode) {
             minify: false,
             platform: 'browser',
             external: ['node:worker_threads', 'worker_threads', 'playcanvas'],
+            alias: {
+                '@': './src'
+            },
             logLevel: 'info',
             metafile: true,
             plugins: createPlugins(mode, adbPlugin)

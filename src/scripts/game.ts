@@ -53,30 +53,53 @@ export class Game extends pc.Script {
 
         const tree = new pc.Entity('tree');
         const treeScript = addScript<Tree>(tree, 'tree');
+        this.fruitController.registerTree(treeScript, {
+            spawnRate: 3,
+            position: new pc.Vec3(0, 2, 0.4)
+        });
+
         this.app.root.addChild(tree);
-        treeScript.fruitController = this.fruitController;
-        treeScript.startSpawning();
         tree.setPosition(0, 0, -4);
 
         const tree2 = new pc.Entity('tree');
         const tree2Script = addScript<Tree>(tree2, 'tree');
+        this.fruitController.registerTree(tree2Script, {
+            spawnRate: 3,
+            position: new pc.Vec3(0, 2, 0.4)
+        });
         this.app.root.addChild(tree2);
-        tree2.setPosition(2, 0, -4);
+        tree2.setPosition(3, 0, -3);
+        tree2.setEulerAngles(0, -45, 0);
 
         const tree3 = new pc.Entity('tree');
         const tree3Script = addScript<Tree>(tree3, 'tree');
+        this.fruitController.registerTree(tree3Script, {
+            spawnRate: 3,
+            position: new pc.Vec3(0, 2, 0.4)
+        });
         this.app.root.addChild(tree3);
-        tree3.setPosition(-2, 0, -4);
+        tree3.setPosition(-3, 0, -3);
+        tree3.setEulerAngles(0, 45, 0);
 
         const tree4 = new pc.Entity('tree');
         const tree4Script = addScript<Tree>(tree4, 'tree');
+        this.fruitController.registerTree(tree4Script, {
+            spawnRate: 3,
+            position: new pc.Vec3(0, 2, 0.4)
+        });
         this.app.root.addChild(tree4);
-        tree4.setPosition(4, 0, -4);
+        tree4.setPosition(6, 0, 0);
+        tree4.setEulerAngles(0, -90, 0);
 
         const tree5 = new pc.Entity('tree');
         const tree5Script = addScript<Tree>(tree5, 'tree');
+        this.fruitController.registerTree(tree5Script, {
+            spawnRate: 3,
+            position: new pc.Vec3(0, 2, 0.4)
+        });
         this.app.root.addChild(tree5);
-        tree5.setPosition(-4, 0, -4);
+        tree5.setPosition(-6, 0, 0);
+        tree5.setEulerAngles(0, 90, 0);
 
         // const cube = new pc.Entity('cube');
         // cube.addComponent('render', {
@@ -91,6 +114,7 @@ export class Game extends pc.Script {
         // cubeScripts.create('rotate');
 
         this.app.root.on('xr:onTrigger', this.shoot, this);
+        this.fruitController.startSpawning();
     }
 
     startXR() {
