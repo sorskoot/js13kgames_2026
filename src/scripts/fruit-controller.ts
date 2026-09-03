@@ -2,11 +2,16 @@ import * as pc from 'playcanvas';
 import {Tree} from './tree.js';
 import {CoroutineManager} from '@/coroutines/CoroutineManager.js';
 import {Coroutine} from '@/coroutines/Coroutine.js';
-import {waitForSeconds} from '@/coroutines/YieldInstructions.js';
+import {waitForCondition, waitForSeconds} from '@/coroutines/YieldInstructions.js';
 
 export interface FruitSpawnSettings {
     spawnRate: number;
+    maxFruits: number;
     position: pc.Vec3;
+}
+
+export interface Fruit {
+    entity: pc.Entity;
 }
 
 export class FruitController extends pc.Script {
@@ -16,6 +21,8 @@ export class FruitController extends pc.Script {
 
     private trees: Tree[] = [];
     private settings: FruitSpawnSettings[] = [];
+
+    private fruitPerTree: Map<number, Fruit[]> = new Map();
 
     initialize() {
         this.coroutineManager = new CoroutineManager();
@@ -28,8 +35,11 @@ export class FruitController extends pc.Script {
     }
 
     registerTree(tree: Tree, settings: FruitSpawnSettings) {
-        this.trees.push(tree);
+        const treeIndex = this.trees.push(tree) - 1;
         this.settings.push(settings);
+        if (!this.fruitPerTree.has(treeIndex)) {
+            this.fruitPerTree.set(treeIndex, []);
+        }
     }
 
     startSpawning() {
@@ -45,13 +55,26 @@ export class FruitController extends pc.Script {
         while (true) {
             yield* waitForSeconds(this.settings[treeIndex].spawnRate);
             // TODO: calculate random position
+            yield* waitForCondition(() => this.shouldSpawn(treeIndex));
             this.spawnFruit(treeIndex);
         }
+    }
+
+    private shouldSpawn(treeIndex: number): boolean {
+        // Implement any logic to determine if a fruit should spawn for the given tree
+
+        const fruits = this.fruitPerTree.get(treeIndex);
+        if (fruits && fruits.length < this.settings[treeIndex].maxFruits) {
+            return true;
+        }
+        return false;
     }
 
     spawnFruit(treeIndex: number) {
         const position = this.settings[treeIndex].position;
         const fruit = new pc.Entity('fruit');
+
+        this.fruitPerTree.get(treeIndex)!.push({entity: fruit});
 
         const material = new pc.StandardMaterial();
         material.diffuse = new pc.Color(0.55, 0.55, 0.55);

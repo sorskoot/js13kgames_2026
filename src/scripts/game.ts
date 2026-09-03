@@ -55,6 +55,7 @@ export class Game extends pc.Script {
         const treeScript = addScript<Tree>(tree, 'tree');
         this.fruitController.registerTree(treeScript, {
             spawnRate: 3,
+            maxFruits: 5,
             position: new pc.Vec3(0, 2, 0.4)
         });
 
@@ -65,6 +66,7 @@ export class Game extends pc.Script {
         const tree2Script = addScript<Tree>(tree2, 'tree');
         this.fruitController.registerTree(tree2Script, {
             spawnRate: 3,
+            maxFruits: 5,
             position: new pc.Vec3(0, 2, 0.4)
         });
         this.app.root.addChild(tree2);
@@ -75,6 +77,7 @@ export class Game extends pc.Script {
         const tree3Script = addScript<Tree>(tree3, 'tree');
         this.fruitController.registerTree(tree3Script, {
             spawnRate: 3,
+            maxFruits: 5,
             position: new pc.Vec3(0, 2, 0.4)
         });
         this.app.root.addChild(tree3);
@@ -85,6 +88,7 @@ export class Game extends pc.Script {
         const tree4Script = addScript<Tree>(tree4, 'tree');
         this.fruitController.registerTree(tree4Script, {
             spawnRate: 3,
+            maxFruits: 5,
             position: new pc.Vec3(0, 2, 0.4)
         });
         this.app.root.addChild(tree4);
@@ -95,6 +99,7 @@ export class Game extends pc.Script {
         const tree5Script = addScript<Tree>(tree5, 'tree');
         this.fruitController.registerTree(tree5Script, {
             spawnRate: 3,
+            maxFruits: 5,
             position: new pc.Vec3(0, 2, 0.4)
         });
         this.app.root.addChild(tree5);
