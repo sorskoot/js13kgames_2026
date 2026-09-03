@@ -13,6 +13,7 @@ export class Game extends pc.Script {
     declare private cameraEntity: pc.Entity;
     declare private camera: pc.CameraComponent;
     declare private fruitController: FruitController;
+    declare private horn: pc.Entity;
 
     initialize() {
         this.app.scene.ambientLight = new pc.Color(0.2, 0.2, 0.2);
@@ -34,10 +35,21 @@ export class Game extends pc.Script {
         light.setEulerAngles(45, 30, 0);
         this.app.root.addChild(light);
 
-        const horn = new pc.Entity('horn');
-        const hornScript = addScript<Horn>(horn, 'horn');
-        hornScript.wireUp(this.cameraEntity);
-        this.cameraEntity.addChild(horn);
+        this.horn = new pc.Entity('horn');
+        this.horn.addComponent('render', {
+            type: 'cone',
+            material: new pc.StandardMaterial()
+        });
+        (this.horn.render!.material as pc.StandardMaterial).diffuse = new pc.Color(1, 1, 0);
+        this.horn.render!.material.update();
+        this.horn.rotateLocal(-90, 0, 0);
+        this.horn.setLocalScale(0.15, 1, 0.15);
+        this.horn.setLocalPosition(0, 0.2, -0.25);
+        this.cameraEntity.addChild(this.horn);
+        // const horn = new pc.Entity('horn');
+        // const hornScript = addScript<Horn>(horn, 'horn');
+        // hornScript.wireUp(this.cameraEntity);
+        // this.cameraEntity.addChild(horn);
 
         const groundPlane = new pc.Entity('ground');
         groundPlane.addComponent('render', {
@@ -138,11 +150,68 @@ export class Game extends pc.Script {
 
     endXR() {
         this.camera.endXr();
-        // this.desktopPointer.enabled = true;
         this.inVR = false;
     }
 
     private shoot() {
-        console.log('Shoot!');
+        if (!this.debugRay) {
+            this.createDebugRay();
+        }
+
+        const origin = this.horn.getPosition();
+        const direction = this.cameraEntity.forward;
+        this.debugRay!.enabled = true;
+        this.debugRay!.setPosition(origin);
+        this.debugRay!.lookAt(origin.clone().add(direction));
+
+        const rayOrigin = origin.clone();
+        const rayDir = direction.clone().normalize();
+
+        let bestHit: {entity: pc.Entity; distance: number} | null = null;
+
+        for (const fruit of this.fruitController.getActiveFruits()) {
+            const pos = fruit.entity.getPosition();
+            const toFruit = pos.clone().sub(rayOrigin);
+            const t = toFruit.dot(rayDir);
+
+            if (t < 0) continue;
+
+            const closestPoint = rayOrigin.clone().add(rayDir.clone().scale(t));
+            const diff = pos.clone().sub(closestPoint);
+            const distSq = diff.lengthSq();
+
+            if (distSq <= fruit.radius * fruit.radius) {
+                const dist = closestPoint.distance(pos);
+                if (!bestHit || dist < bestHit.distance) {
+                    bestHit = {entity: fruit.entity, distance: dist};
+                }
+            }
+        }
+
+        if (bestHit) {
+            this.fruitController.removeFruit(bestHit.entity);
+            // score++, particle effect, sound...
+        }
+    }
+
+    declare private debugRay?: pc.Entity;
+
+    private createDebugRay() {
+        this.debugRay = new pc.Entity('debug-ray');
+        this.debugRay.addComponent('render', {
+            type: 'box',
+            material: new pc.StandardMaterial()
+        });
+
+        const material = this.debugRay.render!.material as pc.StandardMaterial;
+        material.diffuse = new pc.Color(1, 0, 0);
+        material.update();
+
+        this.cameraEntity.addChild(this.debugRay);
+
+        // Beam points down -Z in local space
+        const p = this.horn.getPosition();
+        this.debugRay.setLocalScale(0.02, 0.02, 5);
+        this.app.root.addChild(this.debugRay);
     }
 }

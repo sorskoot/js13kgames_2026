@@ -23,6 +23,7 @@ export class FruitController extends pc.Script {
     private settings: FruitSpawnSettings[] = [];
 
     private fruitPerTree: Map<number, Fruit[]> = new Map();
+    private activeFruits: Array<{entity: pc.Entity; radius: number; treeIndex: number}> = [];
 
     initialize() {
         this.coroutineManager = new CoroutineManager();
@@ -73,6 +74,9 @@ export class FruitController extends pc.Script {
     spawnFruit(treeIndex: number) {
         const position = this.settings[treeIndex].position;
         const fruit = new pc.Entity('fruit');
+        const radius = 0.22;
+
+        this.activeFruits.push({entity: fruit, radius, treeIndex});
 
         this.fruitPerTree.get(treeIndex)!.push({entity: fruit});
 
@@ -85,13 +89,33 @@ export class FruitController extends pc.Script {
             material
         });
 
-        //fruit.setPosition(position);
         const randomOffsetX = position.x + (Math.random() * 1.5 - 0.75);
         const randomOffsetY = position.y + (Math.random() * 1.5 - 0.75);
         fruit.setPosition(randomOffsetX, randomOffsetY, position.z);
         fruit.setLocalScale(0.35, 0.35, 0.35);
-        // this.trees.forEach(tree => {
-        this.trees[treeIndex].entity.addChild(fruit.clone());
-        // });
+
+        this.trees[treeIndex].entity.addChild(fruit);
+    }
+
+    removeFruit(fruit: pc.Entity) {
+        const index = this.activeFruits.findIndex(f => f.entity === fruit);
+        if (index >= 0) {
+            this.activeFruits.splice(index, 1);
+        }
+        const treeIndex = this.activeFruits.find(f => f.entity === fruit)?.treeIndex;
+        if (treeIndex !== undefined) {
+            const fruits = this.fruitPerTree.get(treeIndex);
+            if (fruits) {
+                const fruitIndex = fruits.findIndex(f => f.entity === fruit);
+                if (fruitIndex >= 0) {
+                    fruits.splice(fruitIndex, 1);
+                }
+            }
+        }
+        fruit.destroy();
+    }
+
+    getActiveFruits() {
+        return this.activeFruits;
     }
 }
