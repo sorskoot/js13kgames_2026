@@ -41,4 +41,7 @@ export class Tree extends pc.Script {
         this.entity.addChild(this.trunk);
         this.entity.addChild(this.top);
     }
+    hitFruit() {
+        this.state = Math.min(1, this.state + 0.1);
+    }
 }

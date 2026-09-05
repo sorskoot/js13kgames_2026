@@ -1,7 +1,6 @@
 import * as pc from 'playcanvas';
 import {addScript} from '../helpers/pcUtils.js';
 import {Tree} from './tree.js';
-import {Horn} from './horn.js';
 import {Controllers} from './controllers.js';
 import {FruitController} from './fruit-controller.js';
 import {CoroutineManager} from '@/coroutines/CoroutineManager.js';
@@ -193,7 +192,7 @@ export class Game extends pc.Script {
         }
 
         if (bestHit) {
-            this.fruitController.removeFruit(bestHit.entity);
+            this.fruitController.hitFruit(bestHit.entity);
             // score++, particle effect, sound...
         }
     }

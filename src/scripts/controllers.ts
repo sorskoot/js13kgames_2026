@@ -8,11 +8,6 @@ export class Controllers extends pc.Script {
             return;
         }
         this.app.xr.input.on('add', inputSource => {
-            // const entity = this.controllerTemplate.clone();
-            // entity.reparent(this.app.root);
-            // entity.script.controller.setInputSource(inputSource, entity);
-            // entity.enabled = true;
-
             inputSource.once('remove', () => {
                 // know when input source has been removed
             });

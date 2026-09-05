@@ -10,8 +10,10 @@ export interface FruitSpawnSettings {
     position: pc.Vec3;
 }
 
-export interface Fruit {
+interface ActiveFruit {
     entity: pc.Entity;
+    radius: number;
+    treeIndex: number;
 }
 
 export class FruitController extends pc.Script {
@@ -22,8 +24,7 @@ export class FruitController extends pc.Script {
     private trees: Tree[] = [];
     private settings: FruitSpawnSettings[] = [];
 
-    private fruitPerTree: Map<number, Fruit[]> = new Map();
-    private activeFruits: Array<{entity: pc.Entity; radius: number; treeIndex: number}> = [];
+    private activeFruits: Array<ActiveFruit> = [];
 
     initialize() {
         this.coroutineManager = new CoroutineManager();
@@ -36,11 +37,8 @@ export class FruitController extends pc.Script {
     }
 
     registerTree(tree: Tree, settings: FruitSpawnSettings) {
-        const treeIndex = this.trees.push(tree) - 1;
+        this.trees.push(tree);
         this.settings.push(settings);
-        if (!this.fruitPerTree.has(treeIndex)) {
-            this.fruitPerTree.set(treeIndex, []);
-        }
     }
 
     startSpawning() {
@@ -62,13 +60,7 @@ export class FruitController extends pc.Script {
     }
 
     private shouldSpawn(treeIndex: number): boolean {
-        // Implement any logic to determine if a fruit should spawn for the given tree
-
-        const fruits = this.fruitPerTree.get(treeIndex);
-        if (fruits && fruits.length < this.settings[treeIndex].maxFruits) {
-            return true;
-        }
-        return false;
+        return this.activeFruits.filter(f => f.treeIndex === treeIndex).length < this.settings[treeIndex].maxFruits;
     }
 
     spawnFruit(treeIndex: number) {
@@ -77,8 +69,6 @@ export class FruitController extends pc.Script {
         const radius = 0.22;
 
         this.activeFruits.push({entity: fruit, radius, treeIndex});
-
-        this.fruitPerTree.get(treeIndex)!.push({entity: fruit});
 
         const material = new pc.StandardMaterial();
         material.diffuse = new pc.Color(0.55, 0.55, 0.55);
@@ -97,20 +87,19 @@ export class FruitController extends pc.Script {
         this.trees[treeIndex].entity.addChild(fruit);
     }
 
+    hitFruit(fruit: pc.Entity) {
+        const index = this.activeFruits.findIndex(f => f.entity === fruit);
+        const treeIndex = this.activeFruits[index]?.treeIndex;
+        if (treeIndex !== undefined) {
+            this.trees[treeIndex].hitFruit();
+        }
+        this.removeFruit(fruit);
+    }
+
     removeFruit(fruit: pc.Entity) {
         const index = this.activeFruits.findIndex(f => f.entity === fruit);
         if (index >= 0) {
             this.activeFruits.splice(index, 1);
-        }
-        const treeIndex = this.activeFruits.find(f => f.entity === fruit)?.treeIndex;
-        if (treeIndex !== undefined) {
-            const fruits = this.fruitPerTree.get(treeIndex);
-            if (fruits) {
-                const fruitIndex = fruits.findIndex(f => f.entity === fruit);
-                if (fruitIndex >= 0) {
-                    fruits.splice(fruitIndex, 1);
-                }
-            }
         }
         fruit.destroy();
     }
