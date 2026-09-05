@@ -6,26 +6,38 @@ Analysis of current progress against `docs/GDD.md` and `todo`, plus a plan for p
 
 What exists today (`src/**`):
 
-- `GameManager.ts` boots `pc.Application`, wires Play/Enter VR/Restart buttons (most handlers are commented out stubs), calls `startXR`/`endXR` on `Game`.
-- `Game.ts` (`scripts/game.ts`) builds the scene by hand: one camera, one directional light, a cone "horn" parented to the camera, a plane "ground", and 5 `Tree` entities placed in a row. No aiming, shooting, or fruit spawning is wired up.
-- `Tree.ts` creates a trunk (scaled cylinder) + top (scaled sphere) from `pc.StandardMaterial` primitives. It has an unused `spawnFruit(position)` method that creates a gray sphere fruit but nothing calls it, gives it a lifetime, or removes it.
-- `Rotate.ts` is a leftover test script (spins an entity), not part of the game.
-- `coroutines/` (Coroutine, CoroutineManager, YieldInstructions) is a working generator-based coroutine system but is **not used anywhere yet**.
-- `helpers/pcUtils.ts` has one helper, `addScript`.
-- No shooting/aiming, no hit detection, no color-restoration logic, no tree progress/stages, no particles, no sound, no difficulty curve, no win condition.
+- `GameManager.ts` boots `pc.Application`, detects WebXR, and wires Enter VR / Escape session handling. Desktop Play/Restart UI still contains commented-out stubs, so desktop gameplay input is not complete.
+- `Game.ts` (`scripts/game.ts`) builds the scene by hand: camera, directional light, cone horn, ground plane, and **5 trees arranged around the player**. It owns head-look hitscan shooting and listens for `xr:onTrigger`.
+- `Controllers.ts` converts PlayCanvas XR `select` input into the `xr:onTrigger` event, so VR trigger shooting is wired.
+- `FruitController.ts` registers all 5 trees, uses the existing coroutine system to spawn gray fruit every 3 seconds up to 5 per tree, randomizes fruit position within a small canopy area, exposes active fruit for hit testing, and destroys fruit on a successful hit.
+- `Tree.ts` still renders only a primitive cylinder trunk + flattened sphere canopy. It has no restoration progress or growth stages yet.
+- `Horn.ts` exists but is currently unused; `Game.ts` creates the primitive horn directly. `Rotate.ts` is also leftover test code and remains registered despite not being used by the scene.
+- `coroutines/` is now actively used by `FruitController` for spawn timing and max-fruit gating.
+- Shooting is a manual ray-vs-sphere-style test against active fruit. A red debug beam is created on first shot and successful hits currently remove fruit immediately.
+- There is still no fruit lifetime/rot state, hit color restoration, scoring/tree progress, particles, sound, difficulty curve, win condition, or final sequence.
+
+Known gameplay bug discovered during this review:
+
+- `FruitController.removeFruit()` removes the fruit from `activeFruits` before looking up its `treeIndex`. That lookup then fails, leaving the fruit in `fruitPerTree`; after five successful hits a tree can therefore reach its spawn cap permanently. Fix this before building progression on top of the bookkeeping.
 
 Important build fact (`docs/PlayCanvasSetup.md`): PlayCanvas itself is loaded from an external `<script>` (`play.js13kgames.com/.../playcanvas.js` in prod) and is **not** bundled into `dist/b.js`. Only `src/**` code counts against the 13KB zip budget. This means:
 
 - Using more of the PlayCanvas API (built-in `ParticleSystem` component, `pc.Mesh`, math, physics-free collision helpers, etc.) costs **zero** engine bytes — only the calling code we write costs bytes.
 - The real budget pressure is on the amount of *our* TypeScript (procedural generation code, gameplay logic) — keep it dense and avoid unnecessary abstraction per `.github/instructions/js13k.instructions.md`.
+- **Current measured baseline (2026-09-04):** `npm run build` produces an 8.7KB minified `dist/b.js` and a **3,439-byte `Unicorn.zip`**, 25.8% of the 13,312-byte limit, leaving **9,873 bytes** for gameplay and polish. `npm run lint` is also clean.
 
 ## 2. Gaps vs. `todo` / GDD
 
-**Must Have (blocking a playable game):**
-- ☐ Shooting mechanic (aim via head/camera forward vector, fire rainbow projectile or instant raycast)
-- ☐ Render gray "fruit" spheres that actually spawn on trees and are removed on hit/rot
-- ☐ Mechanic to change fruit color over time (gray → rainbow on hit; rot/disappear on expiry)
-- ☐ 5 trees with real growth stages (currently static geometry, no progress tracking)
+**Must Have (blocking a complete game loop):**
+- ☑ VR trigger shooting using camera-forward hitscan
+- ☑ Gray fruit spawning on all 5 trees with a per-tree concurrency cap
+- ☑ Successful hit detection and fruit removal (prototype behavior)
+- ☐ Fix per-tree fruit bookkeeping so hit fruit frees a spawn slot
+- ☐ Change successful-hit behavior from destroy → permanently colored fruit + restoration progress
+- ☐ Give unhit fruit a lifetime, rot/remove it on expiry, and reduce restoration progress
+- ☐ Track tree restoration and expose the 0/25/50/75/100% growth stages
+- ☐ Add a win condition when all 5 trees reach 100%
+- ☐ Complete desktop fire/pointer-lock flow so the core loop can be tested without a headset
 
 **Should Have:**
 - ☐ Particles (this plan expands this significantly, see §5)
@@ -36,23 +48,25 @@ Important build fact (`docs/PlayCanvasSetup.md`): PlayCanvas itself is loaded fr
 - ☐ Music
 - ☐ Sprites/textures for fruit
 
-**Open critical question from `todo`:** does the horn-on-head-in-VR aiming metaphor feel good? Prototype this first (Milestone 1) before investing in polish — it's the riskiest unknown.
+**Open critical question from `todo`:** the horn-on-head VR aiming prototype now exists, but its feel still needs on-device validation before investing heavily in visual polish. Current aim direction is camera-forward while the ray starts at the horn position.
 
 ## 3. Proposed Milestones
 
 Ordered so that the game is playable end-to-end as early as possible (Milestone 1), then visuals are layered on.
 
-### Milestone 1 — Core Gameplay Loop
+### Milestone 1 — Complete & Stabilize the Core Loop
 
-Goal: a full, playable (if ugly) loop: aim, shoot, color fruit, restore trees, win.
+Goal: turn the existing shooting/spawning prototype into a full, playable (if ugly) loop: shoot, color fruit, manage rot, restore trees, win.
 
-- [ ] **Aiming**: use `camera.forward` (desktop: mouse-look via pointer lock already partially wired; VR: XR camera pose) as the shot direction. A `Reticle`/crosshair entity fixed a couple meters ahead of the camera doubles as visual aim feedback and the horn tip origin.
-- [ ] **Shooting**: on click / VR trigger (`app.xr` input source `select` event), do a ray vs. sphere test (see below) instead of pulling in physics. No physics engine needed — a ray-sphere intersection is ~10 lines of math against each active fruit's world position + radius.
-- [ ] **Fruit spawner** (new `scripts/fruitSpawner.ts` or logic inside `Tree`): periodically call `spawnFruit` at randomized points around the tree canopy, track each fruit's remaining lifetime using `CoroutineManager` + `waitForSeconds` (finally puts the coroutine system to use).
-- [ ] **Fruit lifecycle**: gray → (on hit) lerp to a random rainbow hue + emissive pop + particle burst, remains permanently colored; (on timeout) shrink/fade out and destroy, tree loses a bit of progress.
-- [ ] **Tree progress**: each `Tree` tracks `restoredCount` vs. a target; expose `onFruitColored()` / `onFruitRotted()`. At 25/50/75/100% thresholds, swap canopy appearance (see Milestone 2 for how growth stages map to procedural params instead of separate meshes).
-- [ ] **Win condition**: `Game` listens to all 5 trees reaching 100%, transitions to the final sequence (Milestone 5).
-- [ ] Wire `GameManager`'s commented-out Play/Restart handlers now that there's an actual game-state to pause/resume/restart.
+- [x] **VR input + aiming**: XR controller `select` fires an event; `Game.shoot()` aims along `cameraEntity.forward` from the horn position.
+- [x] **Hitscan**: scan `FruitController.getActiveFruits()` and resolve sphere hits without a physics dependency.
+- [x] **Fruit spawning**: `FruitController` already uses `CoroutineManager`, `waitForSeconds`, and `waitForCondition` to spawn randomized gray fruit with a max of 5 per tree.
+- [ ] **Fix fruit removal bookkeeping first**: capture `treeIndex` before splicing `activeFruits`, then remove the same entity from `fruitPerTree`. This is required for spawning to continue after hits/rot.
+- [ ] **Fruit lifecycle**: add lifetime tracking to each active fruit. On hit, stop treating it as active, recolor it to a rainbow hue and leave it attached to the tree; on timeout, destroy it and free its spawn slot.
+- [ ] **Tree progress**: each `Tree` tracks restoration progress; successful fruit increases it and rot decreases it. Fully restored trees stay at 100%. At 25/50/75/100% thresholds update the temporary primitive canopy first; Milestone 2 can replace those visuals with procedural geometry later.
+- [ ] **Win condition**: `Game` detects all 5 trees reaching 100% and transitions to the final sequence (Milestone 5).
+- [ ] **Desktop test path**: wire Play/pointer-lock and click-to-fire using the same `shoot()` path. Keep the VR and desktop gameplay behavior shared.
+- [ ] **Remove prototype shooting artifacts** once feedback exists: replace the persistent red debug beam with the short rainbow bolt/impact feedback described below.
 
 ### Milestone 2 — Procedural Mesh Generation
 
@@ -97,8 +111,9 @@ Two-tier approach to keep code small while still looking spectacular, taking adv
 
 ### Milestone 6 — Budget & Cleanup Pass
 
-- [ ] Run `npm run build`, inspect `dist/metafile.json` for the biggest contributors in `src/**` output.
-- [ ] Zip `dist/` and confirm it's under 13KB (excluding the externally-hosted engine, per the existing pipeline).
+- [ ] Run `npm run build` after each major visual/gameplay milestone and compare against the 3,439-byte zip baseline; investigate large jumps before stacking more features.
+- [ ] For contributor-level analysis, use a dev build/metafile (the production build currently does not emit `dist/metafile.json`) or enable production metafile output if the extra build-script complexity is justified.
+- [ ] Keep the final `Unicorn.zip` under 13,312 bytes (excluding the externally-hosted engine, per the existing pipeline).
 - [ ] Remove the commented-out dead code in `GameManager.ts`/`game.ts` (`Rotate` script leftover, commented button handlers) once real logic replaces it — matches hard rule #3.
 - [ ] `npm run lint` clean (`tsc --noEmit`).
 - [ ] Re-check that no procedural generation code accidentally runs every frame (bake meshes once at spawn/stage-change, not per `update`).
@@ -116,8 +131,8 @@ src/
     horn.ts             # twisted horn generator
     grass.ts            # merged grass-blade mesh generator
   scripts/
-    fruitSpawner.ts     # or folded into tree.ts script
-    difficulty.ts        # difficulty curve helpers
+    fruit-controller.ts  # already owns spawn/lifetime/active-fruit bookkeeping
+    difficulty.ts        # difficulty curve helpers, only if it earns its bytes
 ```
 
 Keep everything as plain functions/small classes per the instructions file — avoid new abstractions unless reused 3+ times.
@@ -132,7 +147,9 @@ Keep everything as plain functions/small classes per the instructions file — a
 
 ## 6. Shooting From the Horn — Implementation Sketch
 
-**Origin vs. aim direction.** The horn is a fixed cosmetic child of the camera (peripheral vision per GDD), but aiming should follow head-look, not the horn's static local offset. Use the camera for aim math, the horn tip only as the *visual* origin of the bolt:
+**Current implementation:** `Game.shoot()` already uses `cameraEntity.forward` for the direction and the horn world position for the ray origin. `Controllers.ts` already maps the XR controller `select` event to this shot. Keep this path; the next work is correctness and feedback, not a second shooting system.
+
+**Origin vs. aim direction.** The horn is a fixed cosmetic child of the camera (peripheral vision per GDD), but aiming should follow head-look, not the horn's static local offset. The current code follows that model:
 
 ```typescript
 const aimOrigin = camera.entity.getPosition();
@@ -140,7 +157,7 @@ const aimDir = camera.entity.forward; // pc.Vec3, already normalized
 const hornTip = horn.getPosition(); // visual start point for the bolt effect only
 ```
 
-**Hit detection: hitscan, not a simulated projectile.** A traveling projectile that must physically reach the fruit adds timing/interception complexity for no gameplay benefit here. Resolve the hit instantly with ray-sphere math against each active fruit, then play a fast visual bolt from `hornTip` to the resolved point for feedback:
+**Hit detection: keep hitscan, do not add a simulated projectile.** The current implementation already checks the camera-forward ray against every active fruit. Refine that implementation when touching it: compare the ray parameter `t` to choose the nearest hit rather than the current closest-point-to-center distance, then play a fast visual bolt from `hornTip` to the resolved point for feedback.
 
 ```typescript
 function raySphereHit(origin: pc.Vec3, dir: pc.Vec3, center: pc.Vec3, radius: number): number | null {
@@ -177,10 +194,7 @@ tryFire(dt: number, elapsed: number) {
 }
 ```
 
-**Input source (needs a design decision):** GDD says head-aim only, no locomotion, but doesn't specify a fire button. Options, cheapest first:
-- VR controller trigger: `this.app.xr.input.on('add', src => src.on('select', () => this.tryFire(...)))` (fallback to `squeeze` if targeting simpler headsets).
-- No-controller fallback: gaze dwell — auto-fire on a cooldown whenever the reticle overlaps a fruit, no button required. Cheapest to implement and works on any headset, but changes pacing (continuous fire vs. deliberate shots); worth a quick playtest against the `@critical` VR-feel question already flagged.
-- Desktop: reuse the existing pointer-lock click handler already stubbed in `GameManager.ts`.
+**Input source:** VR controller trigger is already the chosen prototype (`app.xr.input` `select`). Preserve it while validating the feel on-device. Desktop still needs click-to-fire through the same `Game.shoot()` path. Gaze dwell remains a fallback only if controller-free headset support becomes a requirement; do not implement it pre-emptively.
 
 **Bolt visual.** A thin stretched quad or tapered cylinder scaled along its length from `hornTip` to the hit point over ~0.1s (ease-out), then destroyed and replaced by the impact particle burst (§7). Reuse one pooled entity rather than creating/destroying per shot.
 
@@ -239,6 +253,8 @@ In practice, drive the *hue* per burst by setting `colorGraph`/`colorGraph2` (mi
 
 ## 8. Risks / Open Questions
 
-- Horn-aiming-in-VR feel is unvalidated — prototype in Milestone 1 before investing further, per the `@critical` item in `todo`.
+- Horn-aiming-in-VR is implemented but still unvalidated on-device; test whether camera-forward aim from an offset horn origin feels coherent before polishing it.
+- Fruit removal currently leaks entries in the per-tree spawn lists, eventually stopping fruit spawning after enough successful hits; fix this at the start of Milestone 1.
+- Desktop Play/pointer-lock does not currently fire shots, making headset-free iteration unnecessarily difficult.
 - Particle volume vs. VR headset GPU budget — needs on-device testing, not just desktop.
 - Procedural tree/grass generation cost at scene-build time (should be a one-time cost per entity, not per-frame) — verify with the metafile/profiler once implemented.

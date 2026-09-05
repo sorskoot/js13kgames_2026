@@ -13,6 +13,9 @@ export class Tree extends pc.Script {
     public spawnRate: number = 3; //seconds
     private fruitController?: FruitController;
 
+    // State between 0 and 1. Goal is to get the tree healed to 1
+    private state: number = 0;
+
     initialize() {
         this.trunk = new pc.Entity('tree-trunk');
         this.top = new pc.Entity('tree-top');

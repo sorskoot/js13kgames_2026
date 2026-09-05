@@ -4,6 +4,9 @@ import {Tree} from './tree.js';
 import {Horn} from './horn.js';
 import {Controllers} from './controllers.js';
 import {FruitController} from './fruit-controller.js';
+import {CoroutineManager} from '@/coroutines/CoroutineManager.js';
+import {Coroutine} from '@/coroutines/Coroutine.js';
+import {waitForSeconds} from '@/coroutines/YieldInstructions.js';
 
 export class Game extends pc.Script {
     static override scriptName = 'game';
@@ -14,6 +17,7 @@ export class Game extends pc.Script {
     declare private camera: pc.CameraComponent;
     declare private fruitController: FruitController;
     declare private horn: pc.Entity;
+    declare private coroutineManager: CoroutineManager;
 
     initialize() {
         this.app.scene.ambientLight = new pc.Color(0.2, 0.2, 0.2);
@@ -132,6 +136,11 @@ export class Game extends pc.Script {
 
         this.app.root.on('xr:onTrigger', this.shoot, this);
         this.fruitController.startSpawning();
+        this.coroutineManager = new CoroutineManager();
+    }
+
+    update(dt: number) {
+        this.coroutineManager.update(dt);
     }
 
     startXR() {
@@ -154,15 +163,10 @@ export class Game extends pc.Script {
     }
 
     private shoot() {
-        if (!this.debugRay) {
-            this.createDebugRay();
-        }
-
         const origin = this.horn.getPosition();
         const direction = this.cameraEntity.forward;
-        this.debugRay!.enabled = true;
-        this.debugRay!.setPosition(origin);
-        this.debugRay!.lookAt(origin.clone().add(direction));
+
+        this.shootRay(origin, direction);
 
         const rayOrigin = origin.clone();
         const rayDir = direction.clone().normalize();
@@ -194,24 +198,37 @@ export class Game extends pc.Script {
         }
     }
 
-    declare private debugRay?: pc.Entity;
+    declare private rainbowRay?: pc.Entity;
+    private rayRoutineId = -1;
 
-    private createDebugRay() {
-        this.debugRay = new pc.Entity('debug-ray');
-        this.debugRay.addComponent('render', {
-            type: 'box',
-            material: new pc.StandardMaterial()
-        });
+    private shootRay(origin: pc.Vec3, direction: pc.Vec3) {
+        if (!this.rainbowRay) {
+            this.rainbowRay = new pc.Entity('ray');
+            this.rainbowRay.addComponent('render', {
+                type: 'box',
+                material: new pc.StandardMaterial()
+            });
 
-        const material = this.debugRay.render!.material as pc.StandardMaterial;
-        material.diffuse = new pc.Color(1, 0, 0);
-        material.update();
+            const material = this.rainbowRay.render!.material as pc.StandardMaterial;
+            material.diffuse = new pc.Color(1, 1, 1);
+            material.emissive = new pc.Color(1, 1, 1);
+            material.update();
 
-        this.cameraEntity.addChild(this.debugRay);
+            this.cameraEntity.addChild(this.rainbowRay);
 
-        // Beam points down -Z in local space
-        const p = this.horn.getPosition();
-        this.debugRay.setLocalScale(0.02, 0.02, 5);
-        this.app.root.addChild(this.debugRay);
+            this.rainbowRay.setLocalScale(0.02, 0.02, 5);
+        }
+        this.app.root.addChild(this.rainbowRay);
+
+        this.rainbowRay.enabled = true;
+        this.rainbowRay.setPosition(origin);
+        this.rainbowRay.lookAt(origin.clone().add(direction));
+
+        this.coroutineManager.stopCoroutine(this.rayRoutineId);
+        this.rayRoutineId = this.coroutineManager.addCoroutine(new Coroutine(this.rayRoutine()));
+    }
+    private *rayRoutine() {
+        yield* waitForSeconds(0.2);
+        this.rainbowRay!.enabled = false;
     }
 }
