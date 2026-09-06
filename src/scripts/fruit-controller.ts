@@ -3,17 +3,22 @@ import {Tree} from './tree.js';
 import {CoroutineManager} from '@/coroutines/CoroutineManager.js';
 import {Coroutine} from '@/coroutines/Coroutine.js';
 import {waitForCondition, waitForSeconds} from '@/coroutines/YieldInstructions.js';
+import {lerp} from '@/helpers/lerp.js';
 
 export interface FruitSpawnSettings {
     spawnRate: number;
     maxFruits: number;
     position: pc.Vec3;
+    fruitColor: number[];
 }
 
 interface ActiveFruit {
     entity: pc.Entity;
     radius: number;
     treeIndex: number;
+    life: number;
+    decayRate: number;
+    color: number[];
 }
 
 export class FruitController extends pc.Script {
@@ -28,6 +33,7 @@ export class FruitController extends pc.Script {
 
     initialize() {
         this.coroutineManager = new CoroutineManager();
+        this.coroutineManager.addCoroutine(new Coroutine(this.updateFruits()));
     }
 
     update(dt: number) {
@@ -52,7 +58,7 @@ export class FruitController extends pc.Script {
 
     private *spawnRoutine(treeIndex: number) {
         while (true) {
-            yield* waitForSeconds(this.settings[treeIndex].spawnRate);
+            yield* waitForSeconds(this.settings[treeIndex].spawnRate + Math.random() * 2);
             // TODO: calculate random position
             yield* waitForCondition(() => this.shouldSpawn(treeIndex));
             this.spawnFruit(treeIndex);
@@ -68,7 +74,14 @@ export class FruitController extends pc.Script {
         const fruit = new pc.Entity('fruit');
         const radius = 0.22;
 
-        this.activeFruits.push({entity: fruit, radius, treeIndex});
+        this.activeFruits.push({
+            entity: fruit,
+            radius,
+            treeIndex,
+            life: 1,
+            decayRate: 0.01,
+            color: this.settings[treeIndex].fruitColor
+        });
 
         const material = new pc.StandardMaterial();
         material.diffuse = new pc.Color(0.55, 0.55, 0.55);
@@ -106,5 +119,26 @@ export class FruitController extends pc.Script {
 
     getActiveFruits() {
         return this.activeFruits;
+    }
+
+    private *updateFruits() {
+        while (true) {
+            yield* waitForCondition(() => this.activeFruits.length > 0);
+            yield* waitForSeconds(0.1);
+
+            for (const fruitData of this.activeFruits) {
+                fruitData.life -= fruitData.decayRate;
+                if (fruitData.life <= 0) {
+                    this.removeFruit(fruitData.entity);
+                } else {
+                    (fruitData.entity.render!.material as pc.StandardMaterial).diffuse = new pc.Color(
+                        lerp(fruitData.color[0], 0.31 * 1.5, 1 - fruitData.life),
+                        lerp(fruitData.color[1], 0.16 * 1.5, 1 - fruitData.life),
+                        lerp(fruitData.color[2], 0.05, 1 - fruitData.life)
+                    );
+                    fruitData.entity.render?.material.update();
+                }
+            }
+        }
     }
 }

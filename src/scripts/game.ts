@@ -19,7 +19,7 @@ export class Game extends pc.Script {
     declare private coroutineManager: CoroutineManager;
 
     initialize() {
-        this.app.scene.ambientLight = new pc.Color(0.2, 0.2, 0.2);
+        this.app.scene.ambientLight = new pc.Color(0.4, 0.4, 0.4);
 
         this.cameraEntity = new pc.Entity('camera');
         this.camera = this.cameraEntity.addComponent('camera', {
@@ -61,7 +61,7 @@ export class Game extends pc.Script {
         });
         (groundPlane.render!.material as pc.StandardMaterial).diffuse = new pc.Color(0.05, 0.55, 0.35);
         groundPlane.render!.material.update();
-        groundPlane.setLocalScale(10, 1, 10);
+        groundPlane.setLocalScale(25, 1, 25);
         this.app.root.addChild(groundPlane);
 
         this.fruitController = addScript<FruitController>(this.app.root, 'fruit-controller');
@@ -71,7 +71,8 @@ export class Game extends pc.Script {
         this.fruitController.registerTree(treeScript, {
             spawnRate: 3,
             maxFruits: 5,
-            position: new pc.Vec3(0, 2, 0.4)
+            position: new pc.Vec3(0, 2, 0.4),
+            fruitColor: [1, 0.55, 0.55]
         });
 
         this.app.root.addChild(tree);
@@ -82,7 +83,8 @@ export class Game extends pc.Script {
         this.fruitController.registerTree(tree2Script, {
             spawnRate: 3,
             maxFruits: 5,
-            position: new pc.Vec3(0, 2, 0.4)
+            position: new pc.Vec3(0, 2, 0.4),
+            fruitColor: [0.55, 1, 0.55]
         });
         this.app.root.addChild(tree2);
         tree2.setPosition(3, 0, -3);
@@ -93,7 +95,8 @@ export class Game extends pc.Script {
         this.fruitController.registerTree(tree3Script, {
             spawnRate: 3,
             maxFruits: 5,
-            position: new pc.Vec3(0, 2, 0.4)
+            position: new pc.Vec3(0, 2, 0.4),
+            fruitColor: [0.55, 0.55, 1]
         });
         this.app.root.addChild(tree3);
         tree3.setPosition(-3, 0, -3);
@@ -104,7 +107,8 @@ export class Game extends pc.Script {
         this.fruitController.registerTree(tree4Script, {
             spawnRate: 3,
             maxFruits: 5,
-            position: new pc.Vec3(0, 2, 0.4)
+            position: new pc.Vec3(0, 2, 0.4),
+            fruitColor: [1, 0.55, 1]
         });
         this.app.root.addChild(tree4);
         tree4.setPosition(6, 0, 0);
@@ -115,7 +119,8 @@ export class Game extends pc.Script {
         this.fruitController.registerTree(tree5Script, {
             spawnRate: 3,
             maxFruits: 5,
-            position: new pc.Vec3(0, 2, 0.4)
+            position: new pc.Vec3(0, 2, 0.4),
+            fruitColor: [0.55, 1, 1]
         });
         this.app.root.addChild(tree5);
         tree5.setPosition(-6, 0, 0);
@@ -215,7 +220,7 @@ export class Game extends pc.Script {
 
             this.cameraEntity.addChild(this.rainbowRay);
 
-            this.rainbowRay.setLocalScale(0.02, 0.02, 5);
+            this.rainbowRay.setLocalScale(0.02, 0.02, 10);
         }
         this.app.root.addChild(this.rainbowRay);
 

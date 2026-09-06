@@ -3,13 +3,14 @@
 Must Have:
     ✓ Shooting mechanic @done(26-09-03 22:31)
     ✓ Render gray spheres to shoot @done(26-09-03 21:45)
-    ☐ Mechanic to change color of objects over time
+    ✓ Mechanic to change color of objects over time @done(26-09-06 11:55)
     5 trees to grow fruit on:
         Right now they can be just a cube for the trunk and a cylinder/circle for the leaves
         ✓ Add trees @done
         ✓ Add fruit to trees @done(26-09-03 21:45)
-        ☐ Rot fruit over time
-        ☐ Remove fruit that is rotten
+        ✓ Rot fruit over time @done(26-09-06 11:14)
+        ✓ Remove fruit that is rotten @done(26-09-06 11:14)
+        ✓ Visualize rotting of fruit @done(26-09-06 11:55)
         ☐ Score when fruit is hit
         ✓ Remove fruit when hit @done(26-09-03 22:31)
         
@@ -20,6 +21,7 @@ Should Have:
     ☐ Better scene
     ☐ timeout on shooting
     ☐ Instead of creating fruit dynamically, use a pool of pre-created fruit entities
+    ☐ Pool fruit materials
 
 Could Have:
     ☐ Music
