@@ -113,7 +113,7 @@ function printAndCheck(size: number, zipPath: string) {
     const {bar, pct} = formatProgress(size, SIZE_LIMIT, 10);
     const remaining = SIZE_LIMIT - size;
     const remainingText = remaining >= 0 ? `+${remaining} bytes remaining` : `-${Math.abs(remaining)} bytes over`;
-    const line = `${bar} ${pct}% of ${SIZE_LIMIT} bytes | ${remainingText}`;
+    const line = `${bar} ${pct}% of ${SIZE_LIMIT} bytes | ${size} bytes | ${remainingText}`;
     if (size > SIZE_LIMIT) {
         console.error(line);
         throw new Error(`Archive exceeds ${SIZE_LIMIT} bytes limit (${size} bytes)`);
@@ -130,8 +130,10 @@ async function build(mode: BuildMode) {
         outfile: 'dist/b.js',
         format: 'esm',
         target: 'es2022',
+        define: {DEBUG: 'false'},
         sourcemap: mode === 'dev',
         minify: mode === 'prod',
+        treeShaking: mode === 'prod',
         external: ['node:worker_threads', 'worker_threads', 'playcanvas'],
         logLevel: 'info',
         alias: {
@@ -183,8 +185,6 @@ async function build(mode: BuildMode) {
     } else {
         await createZip();
     }
-    // C:\\dev\\js13kgames_2026\\node_modules\\@miwt\\adb\\bin\\win\\adb.exe devices
-
     console.log('Production build complete.');
     return result;
 }
