@@ -4,6 +4,7 @@ Must Have:
     ✓ Shooting mechanic @done(26-09-03 22:31)
     ✓ Render gray spheres to shoot @done(26-09-03 21:45)
     ✓ Mechanic to change color of objects over time @done(26-09-06 11:55)
+    ✓ healing mechanic for trees @done(26-09-07 11:25)
     5 trees to grow fruit on:
         Right now they can be just a cube for the trunk and a cylinder/circle for the leaves
         ✓ Add trees @done
@@ -11,25 +12,31 @@ Must Have:
         ✓ Rot fruit over time @done(26-09-06 11:14)
         ✓ Remove fruit that is rotten @done(26-09-06 11:14)
         ✓ Visualize rotting of fruit @done(26-09-06 11:55)
-        ☐ Score when fruit is hit
+        ✓ Score when fruit is hit @done(26-09-07 10:59)
         ✓ Remove fruit when hit @done(26-09-03 22:31)
-        
+    ✓ Win state when all trees are healed @done(26-09-07 12:20)
+    ☐ Start game when entering VR
 
 Should Have:
     ☐ Particles
     ☐ Sound effects
-    ☐ Better scene
+    Better scene:
+        ☐ Better looking trees
+        ☐ Sky
     ☐ timeout on shooting
     ☐ Instead of creating fruit dynamically, use a pool of pre-created fruit entities
     ☐ Pool fruit materials
 
+
 Could Have:
+    ☐ Background environment (mountains, forrest, etc)
     ☐ Music
+    ☐ Add visualization of cooldown for the horn
     ☐ Sprites or textures for the spheres
     ☐ Using shader to animate trees and grass
         ~ https://playcanvas.com/examples/#/shaders/trees
 
-
 Would Like:
+    ☐ Make the horn look better
 
 Bugs:

@@ -17,6 +17,7 @@ export class Game extends pc.Script {
     declare private fruitController: FruitController;
     declare private horn: pc.Entity;
     declare private coroutineManager: CoroutineManager;
+    private trees: Tree[] = [];
 
     initialize() {
         this.app.scene.ambientLight = new pc.Color(0.4, 0.4, 0.4);
@@ -64,6 +65,7 @@ export class Game extends pc.Script {
 
         const tree = new pc.Entity('tree');
         const treeScript = addScript<Tree>(tree, 'tree');
+        this.trees.push(treeScript);
         this.fruitController.registerTree(treeScript, {
             spawnRate: 3,
             maxFruits: 5,
@@ -76,6 +78,7 @@ export class Game extends pc.Script {
 
         const tree2 = new pc.Entity('tree');
         const tree2Script = addScript<Tree>(tree2, 'tree');
+        this.trees.push(tree2Script);
         this.fruitController.registerTree(tree2Script, {
             spawnRate: 3,
             maxFruits: 5,
@@ -88,6 +91,7 @@ export class Game extends pc.Script {
 
         const tree3 = new pc.Entity('tree');
         const tree3Script = addScript<Tree>(tree3, 'tree');
+        this.trees.push(tree3Script);
         this.fruitController.registerTree(tree3Script, {
             spawnRate: 3,
             maxFruits: 5,
@@ -100,6 +104,7 @@ export class Game extends pc.Script {
 
         const tree4 = new pc.Entity('tree');
         const tree4Script = addScript<Tree>(tree4, 'tree');
+        this.trees.push(tree4Script);
         this.fruitController.registerTree(tree4Script, {
             spawnRate: 3,
             maxFruits: 5,
@@ -112,6 +117,7 @@ export class Game extends pc.Script {
 
         const tree5 = new pc.Entity('tree');
         const tree5Script = addScript<Tree>(tree5, 'tree');
+        this.trees.push(tree5Script);
         this.fruitController.registerTree(tree5Script, {
             spawnRate: 3,
             maxFruits: 5,
@@ -135,6 +141,7 @@ export class Game extends pc.Script {
         // cubeScripts.create('rotate');
 
         this.app.root.on('xr:onTrigger', this.shoot, this);
+        this.app.root.on('tree:healed', this.onTreeHealed, this);
         this.fruitController.startSpawning();
         this.coroutineManager = new CoroutineManager();
     }
@@ -195,6 +202,13 @@ export class Game extends pc.Script {
         if (bestHit) {
             this.fruitController.hitFruit(bestHit.entity);
             // score++, particle effect, sound...
+        }
+    }
+
+    private onTreeHealed(tree: Tree) {
+        console.log(`Tree healed: ${tree.entity.name}`);
+        if (this.trees.every(tree => tree.isHealed)) {
+            console.log('All trees are healed! You Won!!');
         }
     }
 

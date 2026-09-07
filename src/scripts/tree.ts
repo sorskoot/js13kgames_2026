@@ -51,7 +51,7 @@ export class Tree extends pc.Script {
         this.updateMaterials();
         if (this.state >= 1) {
             this.isHealed = true;
-            console.log(`Tree is fully healed`);
+            this.app.root.fire('tree:healed', this);
         }
         return this.isHealed;
     }
