@@ -3,6 +3,7 @@ import {Tree} from './tree.js';
 import {CoroutineManager} from '@/coroutines/CoroutineManager.js';
 import {Coroutine} from '@/coroutines/Coroutine.js';
 import {waitForCondition, waitForSeconds} from '@/coroutines/YieldInstructions.js';
+import {GameState} from './GameState.js';
 
 export interface FruitSpawnSettings {
     spawnRate: number;
@@ -57,6 +58,7 @@ export class FruitController extends pc.Script {
 
     private *spawnRoutine(treeIndex: number) {
         while (true) {
+            yield* waitForCondition(() => !GameState.isPaused);
             yield* waitForSeconds(this.settings[treeIndex].spawnRate + Math.random() * 2);
             // TODO: calculate random position
             yield* waitForCondition(() => this.shouldSpawn(treeIndex));
@@ -141,6 +143,7 @@ export class FruitController extends pc.Script {
 
     private *updateFruits() {
         while (true) {
+            yield* waitForCondition(() => !GameState.isPaused);
             yield* waitForCondition(() => this.activeFruits.length > 0);
             yield* waitForSeconds(0.1);
 

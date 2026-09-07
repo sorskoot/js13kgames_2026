@@ -5,7 +5,8 @@ import {Controllers} from './controllers.js';
 import {FruitController} from './fruit-controller.js';
 import {CoroutineManager} from '@/coroutines/CoroutineManager.js';
 import {Coroutine} from '@/coroutines/Coroutine.js';
-import {waitForSeconds} from '@/coroutines/YieldInstructions.js';
+import {waitForCondition, waitForSeconds} from '@/coroutines/YieldInstructions.js';
+import {GameState} from './GameState.js';
 
 export class Game extends pc.Script {
     static override scriptName = 'game';
@@ -157,8 +158,10 @@ export class Game extends pc.Script {
                 if (err) {
                     console.error('WebXR Immersive VR failed to start: ' + err.message);
                     this.inVR = false;
+                    GameState.isPaused = true;
                 } else {
                     this.inVR = true;
+                    GameState.isPaused = false;
                 }
             }
         });
@@ -167,6 +170,7 @@ export class Game extends pc.Script {
     endXR() {
         this.camera.endXr();
         this.inVR = false;
+        GameState.isPaused = true;
     }
 
     private shoot() {
@@ -242,6 +246,7 @@ export class Game extends pc.Script {
         this.rayRoutineId = this.coroutineManager.addCoroutine(new Coroutine(this.rayRoutine()));
     }
     private *rayRoutine() {
+        yield* waitForCondition(() => !GameState.isPaused);
         yield* waitForSeconds(0.2);
         this.rainbowRay!.enabled = false;
     }
