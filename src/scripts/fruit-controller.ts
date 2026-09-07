@@ -3,7 +3,6 @@ import {Tree} from './tree.js';
 import {CoroutineManager} from '@/coroutines/CoroutineManager.js';
 import {Coroutine} from '@/coroutines/Coroutine.js';
 import {waitForCondition, waitForSeconds} from '@/coroutines/YieldInstructions.js';
-import {lerp} from '@/helpers/lerp.js';
 
 export interface FruitSpawnSettings {
     spawnRate: number;
@@ -66,6 +65,9 @@ export class FruitController extends pc.Script {
     }
 
     private shouldSpawn(treeIndex: number): boolean {
+        if (this.trees[treeIndex].isHealed) {
+            return false;
+        }
         return this.activeFruits.filter(f => f.treeIndex === treeIndex).length < this.settings[treeIndex].maxFruits;
     }
 
@@ -103,8 +105,13 @@ export class FruitController extends pc.Script {
     hitFruit(fruit: pc.Entity) {
         const index = this.activeFruits.findIndex(f => f.entity === fruit);
         const treeIndex = this.activeFruits[index]?.treeIndex;
-        if (treeIndex !== undefined) {
-            this.trees[treeIndex].hitFruit();
+        if (treeIndex !== undefined && !this.trees[treeIndex].isHealed) {
+            if (this.trees[treeIndex].hitFruit()) {
+                // remove all fruits associated with this tree
+                for (const fruitData of this.activeFruits.filter(f => f.treeIndex === treeIndex)) {
+                    this.removeFruit(fruitData.entity);
+                }
+            }
         }
         this.removeFruit(fruit);
     }
@@ -112,7 +119,7 @@ export class FruitController extends pc.Script {
     rotFruit(fruit: pc.Entity) {
         const index = this.activeFruits.findIndex(f => f.entity === fruit);
         const treeIndex = this.activeFruits[index]?.treeIndex;
-        if (treeIndex !== undefined) {
+        if (treeIndex !== undefined && !this.trees[treeIndex].isHealed) {
             this.trees[treeIndex].rotFruit();
         }
         this.removeFruit(fruit);

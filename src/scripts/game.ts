@@ -49,10 +49,6 @@ export class Game extends pc.Script {
         this.horn.setLocalScale(0.15, 1, 0.15);
         this.horn.setLocalPosition(0, 0.2, -0.25);
         this.cameraEntity.addChild(this.horn);
-        // const horn = new pc.Entity('horn');
-        // const hornScript = addScript<Horn>(horn, 'horn');
-        // hornScript.wireUp(this.cameraEntity);
-        // this.cameraEntity.addChild(horn);
 
         const groundPlane = new pc.Entity('ground');
         groundPlane.addComponent('render', {

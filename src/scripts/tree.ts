@@ -15,6 +15,7 @@ export class Tree extends pc.Script {
 
     private trunkColor: pc.Color[] = [new pc.Color(0.2, 0.2, 0.2, 1), new pc.Color(0.25, 0.15, 0.0, 1)];
     private topColor: pc.Color[] = [new pc.Color(0.4, 0.4, 0.4, 1), new pc.Color(0.15, 0.45, 0.15, 1)];
+    public isHealed: boolean = false;
 
     initialize() {
         this.trunk = new pc.Entity('tree-trunk');
@@ -41,10 +42,18 @@ export class Tree extends pc.Script {
         this.entity.addChild(this.top);
     }
 
-    hitFruit() {
+    /**
+     * Called when a fruit hits the tree. Increases the tree's state and checks if it is fully healed.
+     * @returns {boolean} True if the tree is fully healed, false otherwise.
+     */
+    hitFruit(): boolean {
         this.state = Math.min(1, this.state + 0.1);
         this.updateMaterials();
-        // - if the tree is fully healed stop spawning fruit and do something
+        if (this.state >= 1) {
+            this.isHealed = true;
+            console.log(`Tree is fully healed`);
+        }
+        return this.isHealed;
     }
 
     rotFruit() {
