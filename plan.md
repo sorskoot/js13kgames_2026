@@ -9,12 +9,11 @@ What exists today (`src/**`):
 - `GameManager.ts` boots `pc.Application`, detects WebXR, and wires Enter VR / Escape session handling. Desktop Play/Restart UI still contains commented-out stubs, so desktop gameplay input is not complete.
 - `Game.ts` (`scripts/game.ts`) builds the scene by hand: camera, directional light, cone horn, ground plane, and **5 trees arranged around the player**. It owns head-look hitscan shooting and listens for `xr:onTrigger`.
 - `Controllers.ts` converts PlayCanvas XR `select` input into the `xr:onTrigger` event, so VR trigger shooting is wired.
-- `FruitController.ts` registers all 5 trees, uses the existing coroutine system to spawn fruit every 3 seconds up to 5 active fruit per tree, randomizes fruit position within a small canopy area, exposes active fruit for hit testing, and destroys fruit on a successful hit. Active fruit now has life/decay state: over ~10 seconds it lerps from the tree's target color toward brown, then expires and is removed, freeing its spawn slot.
-- `Tree.ts` still renders only a primitive cylinder trunk + flattened sphere canopy. It now tracks restoration state numerically and adds 10% per successful hit, but has no decay penalty, growth-stage visuals, or completion behavior yet.
-- `Horn.ts` exists but is currently unused; `Game.ts` creates the primitive horn directly. `Rotate.ts` is also leftover test code and remains registered despite not being used by the scene.
+- `FruitController.ts` registers all 5 trees, uses the existing coroutine system to spawn fruit every 3-5 seconds up to 5 active fruit per tree, randomizes fruit position within a small canopy area, exposes active fruit for hit testing, and destroys fruit on a successful hit. Active fruit now has life/decay state: over ~10 seconds it lerps from the tree's target color toward brown, then expires, applies a restoration penalty to its tree, and is removed, freeing its spawn slot.
+- `Tree.ts` still renders only a primitive cylinder trunk + flattened sphere canopy. It tracks restoration state numerically, adds 10% per successful hit, subtracts 10% per expired fruit, and clamps progress to 0-100%, but has no growth-stage visuals, public completion state, or completion behavior yet.
 - `coroutines/` is now actively used by `FruitController` for spawn timing and max-fruit gating.
 - Shooting is a manual ray-vs-sphere-style test against active fruit. A short-lived white/emissive beam is reused between shots and successful hits currently remove fruit immediately.
-- There is still no persistent colored-fruit hit state, restoration loss when fruit expires, growth-stage visuals, particles, sound, difficulty curve, win condition, or final sequence.
+- There is still no persistent colored-fruit hit state, growth-stage visuals, particles, sound, fire cooldown, difficulty curve, win condition, or final sequence.
 
 The previously noted per-tree fruit bookkeeping bug no longer applies: `FruitController` now derives each tree's active count directly from `activeFruits`, so both hits and expiry free a spawn slot when `removeFruit()` removes the active entry.
 
@@ -22,7 +21,7 @@ Important build fact (`docs/PlayCanvasSetup.md`): PlayCanvas itself is loaded fr
 
 - Using more of the PlayCanvas API (built-in `ParticleSystem` component, `pc.Mesh`, math, physics-free collision helpers, etc.) costs **zero** engine bytes — only the calling code we write costs bytes.
 - The real budget pressure is on the amount of *our* TypeScript (procedural generation code, gameplay logic) — keep it dense and avoid unnecessary abstraction per `.github/instructions/js13k.instructions.md`.
-- **Current measured baseline (2026-09-04):** `npm run build` produces an 8.7KB minified `dist/b.js` and a **3,439-byte `Unicorn.zip`**, 25.8% of the 13,312-byte limit, leaving **9,873 bytes** for gameplay and polish. `npm run lint` is also clean.
+- **Current measured baseline (2026-09-06):** `npm run build` produces a 9.2KB minified `dist/b.js` and a **3,602-byte `Unicorn.zip`**, 27.1% of the 13,312-byte limit, leaving **9,710 bytes** for gameplay and polish. The last recorded lint result was clean; re-run `npm run lint` after plan-driven code changes.
 
 ## 2. Gaps vs. `todo` / GDD
 
@@ -33,8 +32,8 @@ Important build fact (`docs/PlayCanvasSetup.md`): PlayCanvas itself is loaded fr
 - ☑ Fix per-tree fruit bookkeeping so hit/expired fruit frees a spawn slot
 - ☑ Give active fruit a lifetime, visible decay, and remove it on expiry
 - ☑ Track basic tree restoration progress from successful hits
+- ☑ Reduce restoration progress when fruit expires
 - ☐ Change successful-hit behavior from destroy → permanently colored fruit + restoration progress
-- ☐ Reduce restoration progress when fruit expires
 - ☐ Expose the 0/25/50/75/100% tree growth stages and lock fully restored trees at 100%
 - ☐ Add a win condition when all 5 trees reach 100%
 - ☐ Complete desktop fire/pointer-lock flow so the core loop can be tested without a headset
@@ -63,11 +62,12 @@ Goal: turn the existing shooting/spawning prototype into a full, playable (if ug
 - [x] **Fruit spawning**: `FruitController` already uses `CoroutineManager`, `waitForSeconds`, and `waitForCondition` to spawn randomized gray fruit with a max of 5 per tree.
 - [x] **Fruit removal bookkeeping**: per-tree occupancy is derived from `activeFruits`, so removing hit or expired fruit immediately frees a spawn slot without a second per-tree list to keep synchronized.
 - [x] **Fruit expiry/decay**: active fruit tracks life, visibly lerps from its tree color toward brown, and is destroyed when life reaches zero. The current fixed values produce roughly a 10-second lifetime.
+- [x] **Tree progress penalty**: expired fruit calls `Tree.rotFruit()`, subtracting 10% restoration and clamping the tree state at 0%.
 - [ ] **Successful-hit fruit state**: stop destroying hit fruit; remove it from the active/decaying set, restore it to its tree color, and leave it attached to the tree permanently.
-- [ ] **Tree progress**: `Tree` already tracks a 0-1 restoration state and adds 0.1 per hit. Extend this so expired fruit reduces progress, fully restored trees stay at 100%, and the temporary primitive canopy reflects the 25/50/75/100% thresholds. Milestone 2 can replace those visuals with procedural geometry later.
+- [ ] **Tree progress visuals/completion**: `Tree` already tracks a clamped 0-1 restoration state, adds 0.1 per hit, and subtracts 0.1 per expired fruit. Expose completion/progress as needed, stop spawning once fully restored, and make the temporary primitive canopy reflect the 25/50/75/100% thresholds. Milestone 2 can replace those visuals with procedural geometry later.
 - [ ] **Win condition**: `Game` detects all 5 trees reaching 100% and transitions to the final sequence (Milestone 5).
 - [ ] **Desktop test path**: wire Play/pointer-lock and click-to-fire using the same `shoot()` path. Keep the VR and desktop gameplay behavior shared.
-- [ ] **Remove prototype shooting artifacts** once feedback exists: replace the persistent red debug beam with the short rainbow bolt/impact feedback described below.
+- [ ] **Shot cadence + feedback**: add the `todo` fire cooldown, then replace the current reused 0.2s white/emissive box ray with the short rainbow bolt/impact feedback described below.
 
 ### Milestone 2 — Procedural Mesh Generation
 
@@ -112,7 +112,7 @@ Two-tier approach to keep code small while still looking spectacular, taking adv
 
 ### Milestone 6 — Budget & Cleanup Pass
 
-- [ ] Run `npm run build` after each major visual/gameplay milestone and compare against the 3,439-byte zip baseline; investigate large jumps before stacking more features.
+- [ ] Run `npm run build` after each major visual/gameplay milestone and compare against the current 3,602-byte zip baseline; investigate large jumps before stacking more features.
 - [ ] For contributor-level analysis, use a dev build/metafile (the production build currently does not emit `dist/metafile.json`) or enable production metafile output if the extra build-script complexity is justified.
 - [ ] Keep the final `Unicorn.zip` under 13,312 bytes (excluding the externally-hosted engine, per the existing pipeline).
 - [ ] Remove the commented-out dead code in `GameManager.ts`/`game.ts` (`Rotate` script leftover, commented button handlers) once real logic replaces it — matches hard rule #3.
@@ -255,7 +255,8 @@ In practice, drive the *hue* per burst by setting `colorGraph`/`colorGraph2` (mi
 ## 8. Risks / Open Questions
 
 - Horn-aiming-in-VR is implemented but still unvalidated on-device; test whether camera-forward aim from an offset horn origin feels coherent before polishing it.
-- Fruit expiry currently removes the fruit and frees its spawn slot, but it does not yet reduce the owning tree's restoration progress as required by the game loop.
+- Tree restoration penalties are implemented, but completion is not exposed to `Game`/`FruitController`, so fully restored trees still have no spawning lock or win-condition integration.
 - Desktop Play/pointer-lock does not currently fire shots, making headset-free iteration unnecessarily difficult.
+- Shooting has no cooldown yet, so XR `select` events are accepted as quickly as they arrive.
 - Particle volume vs. VR headset GPU budget — needs on-device testing, not just desktop.
 - Procedural tree/grass generation cost at scene-build time (should be a one-time cost per entity, not per-frame) — verify with the metafile/profiler once implemented.

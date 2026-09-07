@@ -9,7 +9,7 @@ export interface FruitSpawnSettings {
     spawnRate: number;
     maxFruits: number;
     position: pc.Vec3;
-    fruitColor: number[];
+    fruitColor: pc.Color;
 }
 
 interface ActiveFruit {
@@ -18,7 +18,7 @@ interface ActiveFruit {
     treeIndex: number;
     life: number;
     decayRate: number;
-    color: number[];
+    color: pc.Color;
 }
 
 export class FruitController extends pc.Script {
@@ -109,6 +109,15 @@ export class FruitController extends pc.Script {
         this.removeFruit(fruit);
     }
 
+    rotFruit(fruit: pc.Entity) {
+        const index = this.activeFruits.findIndex(f => f.entity === fruit);
+        const treeIndex = this.activeFruits[index]?.treeIndex;
+        if (treeIndex !== undefined) {
+            this.trees[treeIndex].rotFruit();
+        }
+        this.removeFruit(fruit);
+    }
+
     removeFruit(fruit: pc.Entity) {
         const index = this.activeFruits.findIndex(f => f.entity === fruit);
         if (index >= 0) {
@@ -121,6 +130,8 @@ export class FruitController extends pc.Script {
         return this.activeFruits;
     }
 
+    private brownColor = new pc.Color(0.46, 0.24, 0.05, 1);
+
     private *updateFruits() {
         while (true) {
             yield* waitForCondition(() => this.activeFruits.length > 0);
@@ -129,12 +140,12 @@ export class FruitController extends pc.Script {
             for (const fruitData of this.activeFruits) {
                 fruitData.life -= fruitData.decayRate;
                 if (fruitData.life <= 0) {
-                    this.removeFruit(fruitData.entity);
+                    this.rotFruit(fruitData.entity);
                 } else {
-                    (fruitData.entity.render!.material as pc.StandardMaterial).diffuse = new pc.Color(
-                        lerp(fruitData.color[0], 0.31 * 1.5, 1 - fruitData.life),
-                        lerp(fruitData.color[1], 0.16 * 1.5, 1 - fruitData.life),
-                        lerp(fruitData.color[2], 0.05, 1 - fruitData.life)
+                    (fruitData.entity.render!.material as pc.StandardMaterial).diffuse = new pc.Color().lerp(
+                        fruitData.color,
+                        this.brownColor,
+                        1 - fruitData.life
                     );
                     fruitData.entity.render?.material.update();
                 }

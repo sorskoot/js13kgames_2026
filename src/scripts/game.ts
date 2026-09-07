@@ -72,7 +72,7 @@ export class Game extends pc.Script {
             spawnRate: 3,
             maxFruits: 5,
             position: new pc.Vec3(0, 2, 0.4),
-            fruitColor: [1, 0.55, 0.55]
+            fruitColor: new pc.Color(1, 0.55, 0.55)
         });
 
         this.app.root.addChild(tree);
@@ -84,7 +84,7 @@ export class Game extends pc.Script {
             spawnRate: 3,
             maxFruits: 5,
             position: new pc.Vec3(0, 2, 0.4),
-            fruitColor: [0.55, 1, 0.55]
+            fruitColor: new pc.Color(0.55, 1, 0.55)
         });
         this.app.root.addChild(tree2);
         tree2.setPosition(3, 0, -3);
@@ -96,7 +96,7 @@ export class Game extends pc.Script {
             spawnRate: 3,
             maxFruits: 5,
             position: new pc.Vec3(0, 2, 0.4),
-            fruitColor: [0.55, 0.55, 1]
+            fruitColor: new pc.Color(0.55, 0.55, 1)
         });
         this.app.root.addChild(tree3);
         tree3.setPosition(-3, 0, -3);
@@ -108,7 +108,7 @@ export class Game extends pc.Script {
             spawnRate: 3,
             maxFruits: 5,
             position: new pc.Vec3(0, 2, 0.4),
-            fruitColor: [1, 0.55, 1]
+            fruitColor: new pc.Color(1, 0.55, 1)
         });
         this.app.root.addChild(tree4);
         tree4.setPosition(6, 0, 0);
@@ -120,7 +120,7 @@ export class Game extends pc.Script {
             spawnRate: 3,
             maxFruits: 5,
             position: new pc.Vec3(0, 2, 0.4),
-            fruitColor: [0.55, 1, 1]
+            fruitColor: new pc.Color(0.55, 1, 1)
         });
         this.app.root.addChild(tree5);
         tree5.setPosition(-6, 0, 0);
