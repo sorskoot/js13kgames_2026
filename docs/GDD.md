@@ -2,6 +2,16 @@
 
 Game for JS13K game jam 2026, WebXR category.
 
+## Platform and Budget Constraints
+
+This is a **WebXR-only game**, designed to be played in an immersive VR headset. Desktop and non-XR mobile gameplay are explicitly out of scope.
+
+Desktop support is not a requirement or a fallback milestone. It is a burden on the 13KB budget, implementation, maintenance, and testing. **Do not spend any shipped bytes on desktop-specific support:** no mouse-look or keyboard gameplay, click-to-fire, pointer lock, desktop camera mode, or desktop Play/Restart UI. Existing desktop-only stubs should be removed, not completed.
+
+The minimal browser entry needed to launch an immersive WebXR session remains necessary. Gameplay, aiming, feedback, victory, and replay must work in the headset using XR input, without relying on desktop controls or a desktop UI.
+
+Headless regression tests and external development tools are allowed when they add no desktop-specific runtime paths or bytes to the submission. An incidental non-XR scene preview is not a supported gameplay mode and does not create a framing or usability requirement. Validate gameplay, comfort, stereo visuals, and performance on the intended headset.
+
 ## Idea
 
 The player is a unicorn. A large magical horn is attached to their forehead and is always visible in their peripheral vision. The horn shoots colorful rainbow energy.

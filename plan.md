@@ -4,12 +4,14 @@ Updated 2026-09-08 against the current working tree, `todo`, `docs/GDD.md`, the 
 
 **Recommendation:** finish a fair, replayable loop, add one small mechanic that rewards choosing targets, then make restoration transform the whole scene. Keep the baked trees and existing particle runtime. A new recursive tree generator and a second particle system are no longer priorities.
 
+**Platform constraint:** this is a WebXR-only entry in the JS13K WebXR category. Desktop and non-XR mobile gameplay are out of scope, not missing features. Desktop support is a byte, maintenance, and testing burden: allocate **zero shipped bytes** to mouse look, keyboard gameplay, click-to-fire, pointer lock, a desktop camera, or desktop Play/Restart UI. The minimal browser entry needed to launch an immersive XR session remains in scope. Headless tests and external debugging tools are useful only without adding desktop-specific runtime paths or bytes to the submission.
+
 ## 1. Verified Baseline
 
 | Area | Current implementation | Still missing |
 | --- | --- | --- |
 | VR | Controller trigger fires camera-forward hitscan from the horn entity's world position. Successful XR start unpauses gameplay; XR exit pauses it. | On-headset aiming/comfort validation and robust session lifecycle checks. |
-| Desktop | Scene renders, but Play/Restart/pointer-lock handlers are commented out. Camera starts at `(0, 0, 4)`. | A usable eye-height camera, mouse look, click-to-fire, pause/resume, restart. Keep desktop height separate from XR local-floor tracking. |
+| Non-XR preview | Scene may render outside a headset; desktop Play/Restart/pointer-lock handlers are commented-out stubs. | No desktop gameplay or framing requirement. Do not implement the stubs; remove obsolete desktop-only scaffolding during cleanup. |
 | Orchard | Five trees arranged in a forward-facing arc, rotated toward the player. Cone horn, green plane, bright cyan background, one directional light. | Cohesive sky, ground/horizon, scene framing, better horn. Not a finished gray-to-color world yet. |
 | Trees | `src/lib/tree/data.ts` is a fixed seed-42 baked asset: 93 source vertices, 178 triangles, quantized positions and RGB data. `pc.ts` expands it into a flat-shaded, vertex-colored mesh. | Distinct restoration milestones, environmental response, small visual variation. No runtime branching generator is needed. |
 | Restoration | Each tree independently desaturates its original mesh colors. Hits add 0.1, rot subtracts 0.1, rounded and clamped. `isHealed` and `tree:healed` exist. | A hard completion guard inside `Tree` itself; milestone feedback beyond continuous saturation. |
@@ -27,7 +29,7 @@ Updated 2026-09-08 against the current working tree, `todo`, `docs/GDD.md`, the 
 - `npm run lint`: passed.
 - `node --test scripts/tree.test.ts scripts/tree-gameplay.test.ts`: **4/4 passed**. Coverage includes mesh bounds/topology/normals, independent restoration colors, and fruit placement on all five rotated/translated trees.
 - These tests do **not** prove hitscan ordering, pause correctness, completion idempotence, win/restart, particle cleanup, or headset performance. Those checks remain below.
-- The shared desktop page was inspected visually; its ground-level framing clips the canopies and does not present the ground usefully. This is not an XR playtest.
+- The earlier non-XR preview inspection is not an XR playtest and does not establish a camera/framing defect to fix. Judge framing, scale, and target visibility from the tracked headset view in both eyes.
 
 The production ZIP contains generated HTML and bundled game JavaScript, including baked mesh data and our particle runtime. The hosted PlayCanvas engine is excluded by the existing WebXR build setup. Engine implementation bytes are excluded; our configuration, helpers, shaders, geometry data, and ZIP overhead still count. Engine features also still cost GPU/CPU time. Confirm the permitted engine URL/version and hosted availability before submission.
 
@@ -104,7 +106,7 @@ A rare, clearly shaped bonus fruit could briefly restore nearby fruit, reusing t
 
 | Priority | Visual improvement | Small implementation route | Guardrail |
 | --- | --- | --- | --- |
-| 1 | Ground, sky, and framing | Fix desktop eye height; use a simple horizon-to-zenith sky, matching distance fog, warmer key light, and restrained ambient fill. | No skybox images or postprocessing requirement. Keep gray fruit distinguishable from gray foliage. |
+| 1 | Ground, sky, and framing | Frame the orchard for the tracked headset view; use a simple horizon-to-zenith sky, matching distance fog, warmer key light, and restrained ambient fill. | Preserve XR local-floor tracking; no desktop eye-height workaround, skybox images, or postprocessing requirement. Keep gray fruit distinguishable from gray foliage. |
 | 2 | Restoration spreads beyond trees | Change five low-poly ground patches and reveal small flower clusters as their trees heal. Let aggregate progress shift sky/ground color. | Update on progress changes; reuse geometry/materials where safe. Do not recolor the entire world on the first hit. |
 | 3 | Trees feel alive | Keep baked geometry and independent vertex colors. Add small mesh-child squash/recovery on a hit and a larger completion response. | Animate the visual child, not the entity holding fruit, to avoid moving targets unintentionally. Never shake the camera. |
 | 4 | Clear restoration milestones | Keep continuous saturation; add leaf/flower accents at 25/50/75/100% with a brief threshold cue. | Progress moves in tenths, so threshold crossings first occur at 30/50/80/100%. Derive stages from progress and suppress repeated celebration farming after rot. No full tree regeneration. |
@@ -139,13 +141,13 @@ Each milestone should be independently playable and measured. Extend the current
 ### M1. Complete the Playable Loop
 
 - [ ] Resolve hit-fruit persistence and aiming model decisions in section 2; update the GDD when approved.
-- [ ] Add desktop Play, eye-height view, mouse look, click-to-fire, pointer-lock exit/pause, and restart through the same gameplay path as VR.
+- [ ] Harden XR entry, exit, and re-entry, pause/resume, and controller input lifecycle. Keep gameplay headset-only; do not implement the desktop stubs.
 - [ ] Fix nearest-hit ordering and visual endpoints; add a pause-aware cooldown, initially testing 0.35-0.5 seconds, with horn recharge feedback.
 - [ ] Fix pause boundaries, simultaneous expiry, and completion idempotence. Keep healing permanent.
-- [ ] Convert console-only victory into a win transition that stops spawning/shooting and offers a minimal visible result/replay before the elaborate finale exists.
+- [ ] Convert console-only victory into a win transition that stops spawning/shooting and offers a headset-visible result with controller-operated replay before the elaborate finale exists.
 - [ ] Reset trees, fruits, coroutines, effects, cooldown, and session statistics reliably on replay.
 
-**Acceptance:** finish and replay twice on desktop; enter/exit/re-enter XR without duplicate input or paused-state progression; regression tests cover nearest hit, double expiry, healed immunity/event-once, final win, and reset. Test head aiming early on a headset before investing in the horn asset.
+**Acceptance:** finish and replay twice in a headset without desktop controls; enter/exit/re-enter XR without duplicate input or paused-state progression; regression tests cover nearest hit, double expiry, healed immunity/event-once, final win, and reset. Test head aiming early on a headset before investing in the horn asset. No desktop-specific runtime code or bytes are added.
 
 ### M2. Make the Loop Enjoyable
 
@@ -155,7 +157,7 @@ Each milestone should be independently playable and measured. Extend the current
 - [ ] A/B test the single rainbow-chain rule; keep it only if it improves target choice.
 - [ ] Record run duration, hits, misses, expiries, and where players stall during development; do not ship analytics infrastructure.
 
-**Acceptance:** at least three short first-time playtests. Players understand the objective and urgency, experience recovery after a mistake, and can describe a target-selection choice. Compare completion time and rot rate with the unmodified loop; ask about neck fatigue. Revisit the 5-10 minute target with evidence.
+**Acceptance:** at least three short first-time headset playtests. Players understand the objective and urgency, experience recovery after a mistake, and can describe a target-selection choice. Compare completion time and rot rate with the unmodified loop; ask about neck fatigue. Revisit the 5-10 minute target with evidence.
 
 ### M3. Visual Identity and Runtime Stability
 
@@ -165,14 +167,14 @@ Each milestone should be independently playable and measured. Extend the current
 - [ ] Implement bounded fruit/material and effect/texture reuse; verify cleanup and reset ownership.
 - [ ] Add sparse scenery/grass only if visual comparisons and remaining budget justify them.
 
-**Acceptance:** compare start/half-restored/complete screenshots at the same view; desktop/mobile rendering and both XR eyes show unobstructed targets; no growing entity/material/texture counts over repeated runs; stable headset frame time during repeated hits. Retest rotated-tree fruit placement after visual layout changes.
+**Acceptance:** compare start/half-restored/complete captures at the same headset pose; both XR eyes show unobstructed targets across comfortable head movement; no growing entity/material/texture counts over repeated runs; stable headset frame time during repeated hits. Retest rotated-tree fruit placement after visual layout changes. Non-XR desktop/mobile rendering is not an acceptance gate.
 
 ### M4. Payoff and Submission
 
 - [ ] Stage a short final sequence: trees brighten, rainbow reveals, horn charges, burst/chord resolves, then a calm replay state.
 - [ ] Add a compact result and optional local best if budget permits. Do not postpone a working replay button for scoring polish.
 - [ ] Validate headset comfort, frame pacing, audio lifecycle, hosting, and production engine compatibility.
-- [ ] Update GDD/TODO/build documentation to reflect agreed behavior; remove superseded stubs when their replacements land.
+- [ ] Update GDD/TODO/build documentation to reflect agreed behavior; remove obsolete desktop-only stubs without replacing them, and other superseded stubs when their replacements land.
 - [ ] Build the final archive, verify its contents and total size, and test the extracted production entry rather than only the development server.
 
 **Acceptance:** the ending is visible in VR without depending on a DOM overlay; it cannot fire twice; the game remains playable with sound muted; production ZIP stays below 13,312 bytes.
@@ -183,13 +185,15 @@ These are **provisional ceilings for incremental compressed size**, not measured
 
 | Remaining allocation | Bytes |
 | --- | ---: |
-| M1 input, correctness, phases, replay | 1,100 |
+| M1 XR lifecycle/input, correctness, phases, headset replay | 1,100 |
 | Wave pacing and optional chain | 600 |
 | Sound and shot/hit feedback improvements | 800 |
 | Scene, restoration accents, horn | 750 |
 | Finale and result | 800 |
 | Integration/performance fixes and reserve | 1,211 |
 | **Total current headroom** | **5,261** |
+
+Desktop-specific allocation is **0 bytes**, including desktop-only testing conveniences in shipped code. The M1 ceiling is exclusively for the XR loop; unused budget stays in reserve. This documentation change does not itself save runtime bytes or change the measured build baseline.
 
 Aim to finish planned features around **12,101 bytes**, leaving the reserve intact until late validation. If needed, drop dense grass, wind shaders, background music, extra fruit types, and local-best polish before cutting reliable input, fairness, audible/visible feedback, or the ending. Pooling belongs inside the measured feedback/stability work; it may cost bytes while saving runtime allocation.
 
@@ -200,4 +204,4 @@ Aim to finish planned features around **12,101 bytes**, leaving the reserve inta
 - Keep generated meshes static or update them only on progress changes; small animation transforms need no geometry rebuild. No new runtime libraries, encoded image blobs, or asset downloads outside the permitted engine setup.
 - Production builds replace the development `dist` contents. Coordinate builds with an active dev server and restore the dev workflow before further browser iteration.
 
-**Next implementation slice:** M1's desktop test path and fair shared shooting, with the matching regression tests. Then a minimal win/replay loop. Do not start another tree generator while the current game cannot yet be played end-to-end without a headset.
+**Next implementation slice:** M1's fair VR shooting and XR lifecycle correctness, with the matching regression tests. Then a minimal headset-visible win/replay loop. Desktop support is not a prerequisite for any milestone; spend those bytes on the WebXR experience.
