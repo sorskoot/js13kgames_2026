@@ -70,7 +70,7 @@ export class Game extends pc.Script {
         this.fruitController.registerTree(treeScript, {
             spawnRate: 3,
             maxFruits: 5,
-            position: new pc.Vec3(0, 2, 0.4),
+            position: new pc.Vec3(0, 3, 2),
             fruitColor: new pc.Color(1, 0.55, 0.55)
         });
 
@@ -83,7 +83,7 @@ export class Game extends pc.Script {
         this.fruitController.registerTree(tree2Script, {
             spawnRate: 3,
             maxFruits: 5,
-            position: new pc.Vec3(0, 2, 0.4),
+            position: new pc.Vec3(0, 3, 2),
             fruitColor: new pc.Color(0.55, 1, 0.55)
         });
         this.app.root.addChild(tree2);
@@ -96,7 +96,7 @@ export class Game extends pc.Script {
         this.fruitController.registerTree(tree3Script, {
             spawnRate: 3,
             maxFruits: 5,
-            position: new pc.Vec3(0, 2, 0.4),
+            position: new pc.Vec3(0, 3, 2),
             fruitColor: new pc.Color(0.55, 0.55, 1)
         });
         this.app.root.addChild(tree3);
@@ -109,7 +109,7 @@ export class Game extends pc.Script {
         this.fruitController.registerTree(tree4Script, {
             spawnRate: 3,
             maxFruits: 5,
-            position: new pc.Vec3(0, 2, 0.4),
+            position: new pc.Vec3(0, 3, 2),
             fruitColor: new pc.Color(1, 0.55, 1)
         });
         this.app.root.addChild(tree4);
@@ -122,7 +122,7 @@ export class Game extends pc.Script {
         this.fruitController.registerTree(tree5Script, {
             spawnRate: 3,
             maxFruits: 5,
-            position: new pc.Vec3(0, 2, 0.4),
+            position: new pc.Vec3(0, 3, 2),
             fruitColor: new pc.Color(0.55, 1, 1)
         });
         this.app.root.addChild(tree5);

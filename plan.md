@@ -1,262 +1,203 @@
-# Unicorns and Rainbows — Implementation Plan
+# Unicorns and Rainbows - Implementation Plan
 
-Analysis of current progress against `docs/GDD.md` and `todo`, plus a plan for procedural mesh generation (trees, horn, grass) and a heavier particle system.
+Updated 2026-09-08 against the current working tree, `todo`, `docs/GDD.md`, the build pipeline, and regression tests. This is a planning update, not an implementation of the proposed features. Uncommitted gameplay changes are included in the assessment.
 
-## 1. Current State
+**Recommendation:** finish a fair, replayable loop, add one small mechanic that rewards choosing targets, then make restoration transform the whole scene. Keep the baked trees and existing particle runtime. A new recursive tree generator and a second particle system are no longer priorities.
 
-What exists today (`src/**`):
+## 1. Verified Baseline
 
-- `GameManager.ts` boots `pc.Application`, detects WebXR, and wires Enter VR / Escape session handling. Desktop Play/Restart UI still contains commented-out stubs, so desktop gameplay input is not complete.
-- `Game.ts` (`scripts/game.ts`) builds the scene by hand: camera, directional light, cone horn, ground plane, and **5 trees arranged around the player**. It owns head-look hitscan shooting and listens for `xr:onTrigger`.
-- `Controllers.ts` converts PlayCanvas XR `select` input into the `xr:onTrigger` event, so VR trigger shooting is wired.
-- `FruitController.ts` registers all 5 trees, uses the existing coroutine system to spawn fruit every 3-5 seconds up to 5 active fruit per tree, randomizes fruit position within a small canopy area, exposes active fruit for hit testing, and destroys fruit on a successful hit. Active fruit now has life/decay state: over ~10 seconds it lerps from the tree's target color toward brown, then expires, applies a restoration penalty to its tree, and is removed, freeing its spawn slot.
-- `Tree.ts` still renders only a primitive cylinder trunk + flattened sphere canopy. It tracks restoration state numerically, adds 10% per successful hit, subtracts 10% per expired fruit, and clamps progress to 0-100%, but has no growth-stage visuals, public completion state, or completion behavior yet.
-- `coroutines/` is now actively used by `FruitController` for spawn timing and max-fruit gating.
-- Shooting is a manual ray-vs-sphere-style test against active fruit. A short-lived white/emissive beam is reused between shots and successful hits currently remove fruit immediately.
-- There is still no persistent colored-fruit hit state, growth-stage visuals, particles, sound, fire cooldown, difficulty curve, win condition, or final sequence.
+| Area | Current implementation | Still missing |
+| --- | --- | --- |
+| VR | Controller trigger fires camera-forward hitscan from the horn entity's world position. Successful XR start unpauses gameplay; XR exit pauses it. | On-headset aiming/comfort validation and robust session lifecycle checks. |
+| Desktop | Scene renders, but Play/Restart/pointer-lock handlers are commented out. Camera starts at `(0, 0, 4)`. | A usable eye-height camera, mouse look, click-to-fire, pause/resume, restart. Keep desktop height separate from XR local-floor tracking. |
+| Orchard | Five trees arranged in a forward-facing arc, rotated toward the player. Cone horn, green plane, bright cyan background, one directional light. | Cohesive sky, ground/horizon, scene framing, better horn. Not a finished gray-to-color world yet. |
+| Trees | `src/lib/tree/data.ts` is a fixed seed-42 baked asset: 93 source vertices, 178 triangles, quantized positions and RGB data. `pc.ts` expands it into a flat-shaded, vertex-colored mesh. | Distinct restoration milestones, environmental response, small visual variation. No runtime branching generator is needed. |
+| Restoration | Each tree independently desaturates its original mesh colors. Hits add 0.1, rot subtracts 0.1, rounded and clamped. `isHealed` and `tree:healed` exist. | A hard completion guard inside `Tree` itself; milestone feedback beyond continuous saturation. |
+| Fruit | Spawn every 3-5 seconds per tree, cap five active per tree, randomized local X/Y in front of the canopy at local Z=2. Both hit and expiry remove fruit and free capacity. | Pooling of fruit/entities/materials, clearer active/urgent visual states. |
+| Decay | Starts gray; the next decay updates interpolate from the tree's assigned fruit color toward brown. Lifetime is roughly ten seconds through coroutine ticks. Rot costs 10% restoration. | Gray-until-hit consistency, pause-safe timing, robust simultaneous expiry. |
+| Tree completion | The controller clears remaining fruit on the completing hit, excludes healed trees from normal spawning, and avoids applying further rot through its normal path. | Idempotent completion regardless of caller, regression coverage for these behaviors. |
+| Win | `Game.onTreeHealed()` checks all five flags and logs a win. | A real win phase, stopped gameplay, visible celebration/result, replay. The TODO's checked win item means detection exists, not that the ending is finished. |
+| Feedback | A reused white beam lasts about 0.2 seconds. Hits call `p13kFx`, use the tree's assigned fruit color, and clean up the effect entity and texture after two seconds or controller destruction. | Cooldown, endpoint-correct rainbow bolt, emitter/texture reuse, audio, ambient/finale effects. Particles are already implemented. |
+| State | `GameState.isPaused` plus `Game.inVR`; gameplay uses coroutines. | Distinguish session availability, pause, playing, and won state without competing booleans. |
 
-The previously noted per-tree fruit bookkeeping bug no longer applies: `FruitController` now derives each tree's active count directly from `activeFruits`, so both hits and expiry free a spawn slot when `removeFruit()` removes the active entry.
+### Build and Tests
 
-Important build fact (`docs/PlayCanvasSetup.md`): PlayCanvas itself is loaded from an external `<script>` (`play.js13kgames.com/.../playcanvas.js` in prod) and is **not** bundled into `dist/b.js`. Only `src/**` code counts against the 13KB zip budget. This means:
+- `npm run build`: **8,051-byte `dist/Unicorn.zip`**, **60.5%** of the **13,312-byte** limit; **5,261 bytes remain**. Build reports a 19.3KB minified `b.js`.
+- Previous recorded ZIP: 3,602 bytes on 2026-09-06. Growth since that snapshot: **4,449 bytes**. This is a whole-build difference, not a measured attribution to any one feature.
+- `npm run lint`: passed.
+- `node --test scripts/tree.test.ts scripts/tree-gameplay.test.ts`: **4/4 passed**. Coverage includes mesh bounds/topology/normals, independent restoration colors, and fruit placement on all five rotated/translated trees.
+- These tests do **not** prove hitscan ordering, pause correctness, completion idempotence, win/restart, particle cleanup, or headset performance. Those checks remain below.
+- The shared desktop page was inspected visually; its ground-level framing clips the canopies and does not present the ground usefully. This is not an XR playtest.
 
-- Using more of the PlayCanvas API (built-in `ParticleSystem` component, `pc.Mesh`, math, physics-free collision helpers, etc.) costs **zero** engine bytes — only the calling code we write costs bytes.
-- The real budget pressure is on the amount of *our* TypeScript (procedural generation code, gameplay logic) — keep it dense and avoid unnecessary abstraction per `.github/instructions/js13k.instructions.md`.
-- **Current measured baseline (2026-09-06):** `npm run build` produces a 9.2KB minified `dist/b.js` and a **3,602-byte `Unicorn.zip`**, 27.1% of the 13,312-byte limit, leaving **9,710 bytes** for gameplay and polish. The last recorded lint result was clean; re-run `npm run lint` after plan-driven code changes.
+The production ZIP contains generated HTML and bundled game JavaScript, including baked mesh data and our particle runtime. The hosted PlayCanvas engine is excluded by the existing WebXR build setup. Engine implementation bytes are excluded; our configuration, helpers, shaders, geometry data, and ZIP overhead still count. Engine features also still cost GPU/CPU time. Confirm the permitted engine URL/version and hosted availability before submission.
 
-## 2. Gaps vs. `todo` / GDD
+Use `scripts/build.ts` as the build source of truth. `docs/PlayCanvasSetup.md` has stale details about script registrations, CSS copying, and the production DEBUG define. Production currently defines DEBUG=false and does not emit a metafile; development does emit one. Documentation repair is a separate follow-up, not completed here.
 
-**Must Have (blocking a complete game loop):**
-- ☑ VR trigger shooting using camera-forward hitscan
-- ☑ Gray fruit spawning on all 5 trees with a per-tree concurrency cap
-- ☑ Successful hit detection and fruit removal (prototype behavior)
-- ☑ Fix per-tree fruit bookkeeping so hit/expired fruit frees a spawn slot
-- ☑ Give active fruit a lifetime, visible decay, and remove it on expiry
-- ☑ Track basic tree restoration progress from successful hits
-- ☑ Reduce restoration progress when fruit expires
-- ☐ Change successful-hit behavior from destroy → permanently colored fruit + restoration progress
-- ☐ Expose the 0/25/50/75/100% tree growth stages and lock fully restored trees at 100%
-- ☐ Add a win condition when all 5 trees reach 100%
-- ☐ Complete desktop fire/pointer-lock flow so the core loop can be tested without a headset
+## 2. TODO Reconciliation and Decisions
 
-**Should Have:**
-- ☐ Particles (this plan expands this significantly, see §5)
-- ☐ Sound effects
-- ☐ Better scene (this plan expands this via procedural meshes, see §4)
+The repository `todo` is the durable task source. The `manage_todo_list` tool exposes updates but no read operation, and no earlier list was visible in this conversation. The review list was therefore reconstructed from code and `todo`; it is not a recovered historical list. The remaining implementation tasks should mirror the ordered milestones below.
 
-**Could/Would Like:**
-- ☐ Music
-- ☐ Sprites/textures for fruit
+### Preserve as Completed
 
-**Open critical question from `todo`:** the horn-on-head VR aiming prototype now exists, but its feel still needs on-device validation before investing heavily in visual polish. Current aim direction is camera-forward while the ray starts at the horn position.
+- [x] VR shooting prototype and start-on-enter-VR behavior.
+- [x] Five trees, fruit spawning, expiry/removal, and visible decay.
+- [x] Tree healing/progress, color restoration, completion event, and normal-path spawn lock.
+- [x] All-trees-healed detection, with a console-only result.
+- [x] Better-looking baked trees and colored hit particles.
 
-## 3. Proposed Milestones
+The TODO's "Score when fruit is hit" is currently restoration progress, not a separate displayed score. Its primitive-tree description is obsolete. Its open sound, sky, cooldown, fruit/material pooling, environment, music, shader animation, and better-horn items are retained and prioritized below.
 
-Ordered so that the game is playable end-to-end as early as possible (Milestone 1), then visuals are layered on.
+### Resolve Before Expanding Scope
 
-### Milestone 1 — Complete & Stabilize the Core Loop
+1. **Hit fruit: disappear or persist?** The GDD says permanent colored fruit; the implementation and checked TODO explicitly remove hit fruit. Recommend keeping the satisfying burst-and-disappear behavior, with lasting color/flowers on the tree as the reward. This improves target readability and bounds entity count. This recommendation is not an approved GDD change. If permanent fruit wins, maintain a separate, non-targetable, non-decaying decorative set capped at ten per tree; rot/recovery must not accumulate unlimited ornaments.
+2. **Aiming model:** the GDD describes horn-direction aiming; current code uses camera-forward from the horn entity center. Recommend testing camera-center targeting with a visual bolt from the actual horn tip. This avoids offset-ray parallax, but XR center-eye tracking and near-target behavior must be verified on-device before selecting the final model.
+3. **Run length:** retain the GDD's 5-10 minute target provisionally, but measure whether it stays interesting. Fifty net normal hits restore the orchard. Five independent four-second-average spawners can supply roughly 1.25 fruit/second before trees finish, so the existing numbers do not establish a five-minute game. Do not stretch play by adding idle waits or simply multiplying hit requirements; propose a shorter target only after playtesting and an explicit GDD decision.
+4. **Art production:** keep the proven baked tree rather than replacing it to satisfy the old procedural-only roadmap. Compare ZIP size before choosing baked data versus tiny generators for any new asset. No new runtime dependencies.
 
-Goal: turn the existing shooting/spawning prototype into a full, playable (if ugly) loop: shoot, color fruit, manage rot, restore trees, win.
+## 3. First Fix Fairness and Readability
 
-- [x] **VR input + aiming**: XR controller `select` fires an event; `Game.shoot()` aims along `cameraEntity.forward` from the horn position.
-- [x] **Hitscan**: scan `FruitController.getActiveFruits()` and resolve sphere hits without a physics dependency.
-- [x] **Fruit spawning**: `FruitController` already uses `CoroutineManager`, `waitForSeconds`, and `waitForCondition` to spawn randomized gray fruit with a max of 5 per tree.
-- [x] **Fruit removal bookkeeping**: per-tree occupancy is derived from `activeFruits`, so removing hit or expired fruit immediately frees a spawn slot without a second per-tree list to keep synchronized.
-- [x] **Fruit expiry/decay**: active fruit tracks life, visibly lerps from its tree color toward brown, and is destroyed when life reaches zero. The current fixed values produce roughly a 10-second lifetime.
-- [x] **Tree progress penalty**: expired fruit calls `Tree.rotFruit()`, subtracting 10% restoration and clamping the tree state at 0%.
-- [ ] **Successful-hit fruit state**: stop destroying hit fruit; remove it from the active/decaying set, restore it to its tree color, and leave it attached to the tree permanently.
-- [ ] **Tree progress visuals/completion**: `Tree` already tracks a clamped 0-1 restoration state, adds 0.1 per hit, and subtracts 0.1 per expired fruit. Expose completion/progress as needed, stop spawning once fully restored, and make the temporary primitive canopy reflect the 25/50/75/100% thresholds. Milestone 2 can replace those visuals with procedural geometry later.
-- [ ] **Win condition**: `Game` detects all 5 trees reaching 100% and transitions to the final sequence (Milestone 5).
-- [ ] **Desktop test path**: wire Play/pointer-lock and click-to-fire using the same `shoot()` path. Keep the VR and desktop gameplay behavior shared.
-- [ ] **Shot cadence + feedback**: add the `todo` fire cooldown, then replace the current reused 0.2s white/emissive box ray with the short rainbow bolt/impact feedback described below.
+These are code-review observations and planned checks, not fixes made by this document.
 
-### Milestone 2 — Procedural Mesh Generation
+- **Nearest target:** `Game.shoot()` ranks candidates by distance from the ray to the fruit center. A farther but better-centered fruit can win. Rank nonnegative ray/sphere intersection distances instead. Test overlapping targets, miss/tangent, behind-camera, and origin-inside-sphere cases. Keep the linear scan; no physics library is necessary.
+- **Shot placement:** the current fixed-length box is centered on its origin and is not shortened to a hit. Place the reused visual between the horn tip and resolved impact/miss endpoint. Preserve a small, deliberate hit-radius allowance only after headset testing.
+- **Pause and input:** `waitForSeconds` keeps consuming update time after a pause if already running; condition waits are not an atomic pause guard. Prevent paused spawns, decay, and shots at the owning gameplay boundary. Separate gameplay time from effect cleanup so pausing cannot leak transient effects.
+- **Expiry iteration:** `updateFruits()` removes entries from `activeFruits` during forward iteration, which can skip the next fruit in that tick. Test two adjacent expiries together and ensure each penalty/removal happens once.
+- **Completion:** controller guards protect the normal path, but direct `Tree.hitFruit()` can re-emit completion and `Tree.rotFruit()` can desaturate a healed tree. Guard the invariant in `Tree`; transition to win exactly once.
+- **Visual language:** active targets should remain recognizably gray until hit; use a shrinking stem/ring, subtle pulse, or droop for urgency alongside browning. Do not rely on red/green or hue alone. Keep the brighter reward colors for successful restoration.
 
-Replace primitive-shape placeholders with small, seeded, procedurally generated meshes. All built with a shared low-level helper so the "expensive" part (writing a `pc.Mesh` from raw arrays) is written once.
+## 4. Make Target Selection Interesting
 
-- [ ] `src/procgen/prng.ts` — tiny deterministic PRNG (mulberry32 or xorshift32, ~5 lines) so trees/grass are seeded and reproducible without a real RNG library.
-- [ ] `src/procgen/meshBuilder.ts` — thin wrapper: takes flat `positions`/`normals`/`uvs`/`indices` arrays (per hard rule #4: raw numeric arrays, not objects) and returns a `pc.Mesh` + `pc.MeshInstance`, computing normals automatically if omitted (`pc.calculateNormals` exists in the engine — free to call).
-- [ ] **Tree generator** (`src/procgen/tree.ts`): parametric recursive branching —
-  - Trunk: tapered cylinder built from stacked rings (radius shrinks with height), not a scaled primitive.
-  - Branches: recursively spawn N child branches at randomized angles/lengths from a seeded PRNG per tree instance, each a smaller tapered cylinder.
-  - Canopy: cluster of low-poly icosphere-like blobs (subdivided octahedron, cheap) positioned at branch tips; blob **count and saturation scale with the tree's restoration progress** (0% = 1-2 gray, shrunken blobs; 100% = full cluster, bright, plus small flower quads). This directly implements the GDD's 0/25/50/75/100% visual stages without needing separate authored meshes per stage — just re-generate/scale the same generator with different parameters.
-  - Output: single merged mesh per tree (trunk+branches+canopy) to keep draw calls low.
-- [ ] **Unicorn horn generator** (`src/procgen/horn.ts`): helical spiral cone — generate stacked rings along the horn axis, radius tapering to a point, with a sinusoidal offset per ring to create the twisted ridge look (a lathe with a twist term), replacing the current stretched `cone` primitive. Cheap (~30-40 rings, ~6-8 verts/ring).
-- [ ] **Grass generator** (`src/procgen/grass.ts`): scatter thin bent blade quads (2 triangles each, slight S-curve via a couple of extra segments) across the ground using the PRNG for position/rotation/height jitter, all merged into **one static mesh** (not per-blade entities) to stay within a single draw call. Optionally a lightweight vertex-shader-free wind wobble via a `Script.update` that nudges a uniform/time value if a custom shader chunk is added later — otherwise skip animation for size.
-- [ ] Swap `Tree.ts` and the horn creation code in `Game.ts` to use these generators instead of `pc.Entity` + built-in primitive `render` components. Ground plane gets the grass mesh instance added as a child render.
+The core should feel like **choosing which part of the orchard to rescue next**, not clearing interchangeable targets forever. Prototype one addition at a time and keep only changes that improve an actual playtest.
 
-### Milestone 3 — Particle Systems (the "a lot of particles" ask)
+### A. Pressure and Relief Waves - First Choice
 
-Two-tier approach to keep code small while still looking spectacular, taking advantage of PlayCanvas particles being "free" (engine-hosted, not bundled):
+Start with one forward tree, then a neighboring pair, then two or three active trees in short waves. Use a compact phase table for duration, active-tree count, spawn interval, and lifetime; no new framework. Let existing fruit finish its lifetime when a spawning wave ends.
 
-- [ ] **Primary: engine `pc.ParticleSystem` components** for anything long-lived/ambient — since this is a built-in component, using it costs us only a handful of config lines, not implementation bytes:
-  - Ambient sparkle/motes drifting above fully-restored trees.
-  - Slow rainbow-colored dust drifting across the orchard once the first tree is restored (escalating with progress).
-  - Final-sequence full-sky celebration burst.
-- [ ] **Secondary: small custom burst helper** (`src/particles/burst.ts`) for the punchy, per-hit feedback the GDD calls out explicitly ("a burst of colored particles is emitted" on every hit) where we want precise control tied to the hit's color/position/timing:
-  - Pool of simple billboard quads (or `pc.ParticleSystem` "one-shot" instances triggered via `system.reset()`/short lifetime) reused via an object pool to avoid GC churn — important since hits can happen frequently.
-  - Color driven directly by the same random hue used to color the fruit, so the burst always visually matches what the fruit became.
-- [ ] Perf guardrails: cap total live particles (config constant), disable shadow casting on all particle materials, use additive blending only where it doesn't hurt readability, and test on a mid-range mobile/VR GPU profile since this ships for WebXR headsets.
-- [ ] Wire bursts into the Milestone 1 hit-handling code (`onFruitColored`) and the Milestone 5 final sequence.
+At tree completion, give a brief, clearly signaled spawning breather and a larger restoration response before the next wave. The breather should not secretly freeze an urgent fruit unless the same rule is communicated visually. Select only unhealed trees and never require repeated extreme left-right head turns to keep up.
 
-### Milestone 4 — Difficulty & Progression
+**Why:** teaching, tension, recovery, and a sense of advancing through the orchard without adding enemy types. Difficulty becomes authored pacing rather than five unrelated timers all becoming faster.
 
-- [ ] Central `DifficultyCurve` (a few lerp/step functions keyed on elapsed session time, 5-10 min target) driving: fruit spawn interval, fruit lifetime, max concurrent fruit per tree, and how many trees can be actively spawning at once.
-- [ ] Simple game-phase state (`intro` → `playing` → `finalSequence` → `ended`) on `Game`, replacing ad-hoc `inVR` boolean usage.
+**Keep it if:** a new player can complete the opening without explanation, pressure builds without unavoidable rot, and the last tree does not become a long, empty wait. Tune spawn count or lifetime first, not every parameter at once.
 
-### Milestone 5 — Final Sequence & Polish
+### B. Rainbow Chain - One Optional Skill Rule
 
-- [ ] Rainbow arc: a simple generated torus-segment mesh (reuse the `meshBuilder` ring-stacking approach from the horn/tree generators) with a rainbow vertex-color gradient, revealed across the sky when the 5th tree hits 100%.
-- [ ] Horn "charge" glow: emissive intensity pulse (lerp over a couple seconds) plus a dense particle burst at the horn tip.
-- [ ] Sound: synthesize short effects with the WebAudio API directly (oscillators/noise + envelope) instead of shipping audio files — zero asset bytes, matches hard rule #1 (no new dependencies/libraries).
-- [ ] Confirm VR comfort: no locomotion is implemented anywhere (matches GDD), double check no unintended camera movement scripts (e.g. leftover `Rotate` script) are attached to camera-adjacent entities.
+Prototype consecutive hits on different trees within about three seconds. Every third qualifying hit grants one extra 10% restoration step to the hit tree, through the same completion path. A miss or timeout resets only the chain, never already-earned progress. When only one unhealed tree remains, allow same-tree hits to continue the chain.
 
-### Milestone 6 — Budget & Cleanup Pass
+Show the chain through a rising three-note motif and horn brightness, not a large HUD. The bonus creates a real choice between finishing a nearly healed tree and switching to sustain a chain. The time window and bonus are starting hypotheses, not settled balancing values.
 
-- [ ] Run `npm run build` after each major visual/gameplay milestone and compare against the current 3,602-byte zip baseline; investigate large jumps before stacking more features.
-- [ ] For contributor-level analysis, use a dev build/metafile (the production build currently does not emit `dist/metafile.json`) or enable production metafile output if the extra build-script complexity is justified.
-- [ ] Keep the final `Unicorn.zip` under 13,312 bytes (excluding the externally-hosted engine, per the existing pipeline).
-- [ ] Remove the commented-out dead code in `GameManager.ts`/`game.ts` (`Rotate` script leftover, commented button handlers) once real logic replaces it — matches hard rule #3.
-- [ ] `npm run lint` clean (`tsc --noEmit`).
-- [ ] Re-check that no procedural generation code accidentally runs every frame (bake meshes once at spawn/stage-change, not per `update`).
+**Keep it if:** players voluntarily switch targets, still rescue urgent fruit, and the bonus is understandable. Drop it if it causes frantic neck movement, makes fruit expiry feel unfair, or needs substantial explanation. Implement waves first so the opening does not demand unavailable alternate targets.
 
-## 4. Suggested New File Layout
+### C. Rescue Moments and Living Rewards - Low-Cost Polish
 
-```
-src/
-  particles/
-    burst.ts          # pooled one-shot colored particle bursts
-  procgen/
-    prng.ts            # seeded PRNG
-    meshBuilder.ts      # raw-array -> pc.Mesh/MeshInstance helper
-    tree.ts             # tree generator (trunk+branches+canopy, staged by progress)
-    horn.ts             # twisted horn generator
-    grass.ts            # merged grass-blade mesh generator
-  scripts/
-    fruit-controller.ts  # already owns spawn/lifetime/active-fruit bookkeeping
-    difficulty.ts        # difficulty curve helpers, only if it earns its bytes
-```
+- Give a last-moment rescue a distinct sound and sharper burst, but no extra restoration reward initially. Rewarding lateness mechanically can encourage players to wait for rot instead of playing naturally.
+- On healing, make that tree's ground patch bloom and add its note to a quiet repeating musical phrase. Each success changes the world and the soundscape, without granting an escalating particle load.
+- Keep the five trees spatially recognizable with modest silhouette/scale variation, distinct nearby flower patterns, and tree-specific notes. Do not require color matching or explicit color selection.
+- After winning, offer a clean replay and a compact result such as time and best chain. Add local bests only after reset behavior is reliable; no server or leaderboard.
 
-Keep everything as plain functions/small classes per the instructions file — avoid new abstractions unless reused 3+ times.
+### Defer Unless Playtests Need More
 
-## 5. Key Technical Decisions & Rationale
+A rare, clearly shaped bonus fruit could briefly restore nearby fruit, reusing the existing active-fruit scan. It adds spawn, teaching, targeting, and balance work, so only prototype it if waves and chains still feel repetitive. Defer bombs, enemies, inventories, upgrades, locomotion, and multiple fruit-rule families. More rules are not automatically more fun.
 
-- **No physics engine.** Hit detection is a manual ray-vs-sphere test against a small list of active fruit (never more than a handful at once per the difficulty curve) — cheaper in bytes and runtime than pulling in `ammo.js`/`pc.RigidBody`.
-- **Procedural meshes over authored assets.** No textures/models to ship; everything is generated from small parametric functions using a seeded PRNG, matching the GDD's explicit direction ("stylized procedural trees... generated procedurally from simple geometry").
-- **Growth stages via regeneration, not stage-swapping between separate meshes.** One generator per tree, parameterized by progress (0-1), avoids authoring/storing 5 separate mesh variants.
-- **Lean on built-in `pc.ParticleSystem` for anything that isn't a precisely-timed hit burst.** Since the engine is externally hosted, its components are the cheapest possible way to add "a lot of particles" — favor them over custom particle math except where per-hit color/timing control is needed.
-- **Synthesized audio, no audio files.** Keeps the "Should Have: sound effects" and "Could Have: music" items achievable within budget.
+## 5. Make It Look Better per Byte
 
-## 6. Shooting From the Horn — Implementation Sketch
+**Direction:** a small, sculpted storybook orchard, with faceted trees, soft daylight, restrained active-target colors, and vivid restoration. Preserve visual contrast between the beginning and the ending. More particles should mark important moments, not hide them.
 
-**Current implementation:** `Game.shoot()` already uses `cameraEntity.forward` for the direction and the horn world position for the ray origin. `Controllers.ts` already maps the XR controller `select` event to this shot. Keep this path; the next work is correctness and feedback, not a second shooting system.
+| Priority | Visual improvement | Small implementation route | Guardrail |
+| --- | --- | --- | --- |
+| 1 | Ground, sky, and framing | Fix desktop eye height; use a simple horizon-to-zenith sky, matching distance fog, warmer key light, and restrained ambient fill. | No skybox images or postprocessing requirement. Keep gray fruit distinguishable from gray foliage. |
+| 2 | Restoration spreads beyond trees | Change five low-poly ground patches and reveal small flower clusters as their trees heal. Let aggregate progress shift sky/ground color. | Update on progress changes; reuse geometry/materials where safe. Do not recolor the entire world on the first hit. |
+| 3 | Trees feel alive | Keep baked geometry and independent vertex colors. Add small mesh-child squash/recovery on a hit and a larger completion response. | Animate the visual child, not the entity holding fruit, to avoid moving targets unintentionally. Never shake the camera. |
+| 4 | Clear restoration milestones | Keep continuous saturation; add leaf/flower accents at 25/50/75/100% with a brief threshold cue. | Progress moves in tenths, so threshold crossings first occur at 30/50/80/100%. Derive stages from progress and suppress repeated celebration farming after rot. No full tree regeneration. |
+| 5 | Recognizable unicorn horn | A short tapered, twisted low-poly mesh with a bright tip; recharge shown by tip brightness. | Start around 8-12 rings with six sides, not the old 30-40-ring proposal. Check clipping and peripheral obstruction in both eyes. |
+| 6 | Grounding and distance | Small contact-shadow patches and a few merged distant hill/tree silhouettes hide the plane edge. | Prefer fake contact shadows to dynamic shadow maps initially; avoid z-fighting and extra transparent layers. |
+| 7 | Sparse grass and flowers | Build a few clumps into one static mesh, weighted around restored areas. | No per-blade entities. Dense grass and custom wind shaders come after budget/performance evidence. |
+| 8 | A memorable ending | Reveal a vertex-colored rainbow ribbon above the orchard, sequence tree pulses, then a short burst and final chord. | A strip mesh is cheaper than a thick torus. Keep the player still and use staged effects instead of a permanent particle storm. |
 
-**Origin vs. aim direction.** The horn is a fixed cosmetic child of the camera (peripheral vision per GDD), but aiming should follow head-look, not the horn's static local offset. The current code follows that model:
+Tiny palette/shape variations can make the same tree asset read as a grove. Do not share a mutable color buffer between trees: the regression tests explicitly protect independent restoration. Major tree scaling/repositioning must recheck fruit visibility and reachability.
 
-```typescript
-const aimOrigin = camera.entity.getPosition();
-const aimDir = camera.entity.forward; // pc.Vec3, already normalized
-const hornTip = horn.getPosition(); // visual start point for the bolt effect only
-```
+Emissive surfaces do not automatically produce bloom. First sell energy with a bright core, a small translucent halo, motion, and sound. Avoid full-screen bloom, SSAO, real-time reflections, multiple shadow lights, and full-canopy transparent foliage until their value and stereo cost are demonstrated.
 
-**Hit detection: keep hitscan, do not add a simulated projectile.** The current implementation already checks the camera-forward ray against every active fruit. Refine that implementation when touching it: compare the ray parameter `t` to choose the nearest hit rather than the current closest-point-to-center distance, then play a fast visual bolt from `hornTip` to the resolved point for feedback.
+### Existing Particles: Reuse Before Adding
 
-```typescript
-function raySphereHit(origin: pc.Vec3, dir: pc.Vec3, center: pc.Vec3, radius: number): number | null {
-    const oc = new pc.Vec3().sub2(origin, center);
-    const b = oc.dot(dir);
-    const c = oc.dot(oc) - radius * radius;
-    const disc = b * b - c; // dir is normalized, so a = 1
-    if (disc < 0) return null;
-    const t = -b - Math.sqrt(disc);
-    return t >= 0 ? t : null;
-}
+`src/lib/particles/particles.js` already supplies the P13K runtime. The hit path currently decodes/configures an effect and generates its texture on each hit; it is cleaned up, but not pooled. Improve this path rather than introducing a competing burst renderer.
 
-function shoot(fruits: Fruit[]) {
-    let closest: {fruit: Fruit; t: number} | null = null;
-    for (const fruit of fruits) {
-        const t = raySphereHit(aimOrigin, aimDir, fruit.entity.getPosition(), fruit.radius);
-        if (t !== null && (!closest || t < closest.t)) closest = {fruit, t};
-    }
-    if (closest) closest.fruit.onHit();
-}
-```
+- After adding cooldown, size a small emitter pool from effect duration / shortest shot interval, rounded up with a small margin. Measure the effect's visible lifetime rather than assuming its two-second cleanup delay is the right pool lifetime.
+- Share generated textures when ownership permits; destroy shared textures once at scene teardown, not when one pooled emitter is recycled. Reset position, color, and emitter state on reuse.
+- Pool the existing fruit entities and their mutable materials together, resetting transform, color, life, and tree association. Sharing one mutable decay material across all fruit would couple their colors incorrectly.
+- Favor sparse ambient motes on healed trees, modest hit bursts, larger completion bursts, and a brief staged finale. Choose an initial live-particle cap, then tune against actual headset frame time and overdraw.
+- Validate exported effects in this runtime, not just the editor preview. It does not implement every editor field, and emission timing/burst count should not be inferred from editor labels. Avoid copying the old plan's unverified particle property snippets.
+- If runtime texture/decoder support becomes a size hotspot, compare the complete ZIP of the selected effect path against a minimal direct engine configuration. Keep only one route if the visual result is equivalent; do not assume a replacement is smaller without measuring.
 
-Only a handful of fruit are ever active (difficulty curve caps concurrency), so a linear scan is fine — no spatial partitioning needed.
+### Sound Before More Geometry
 
-**Fire rate.** Track a plain timestamp, no coroutine needed for this part:
+Synthesize a short shot chirp, colored hit note, soft rot cue, and tree-completion chord using browser audio. Initialize/resume audio from a user gesture, provide mute, and stop/suspend appropriately on pause/session exit. Use a small pentatonic note set so overlapping hits remain pleasant. A quiet progression motif can reuse the same synthesis; authored music and audio files remain deferred.
 
-```typescript
-private nextFireTime = 0;
-tryFire(dt: number, elapsed: number) {
-    if (elapsed < this.nextFireTime) return;
-    this.nextFireTime = elapsed + FIRE_COOLDOWN;
-    shoot(activeFruits);
-    spawnBolt(hornTip, aimOrigin.clone().add(aimDir.clone().mulScalar(20)));
-}
-```
+## 6. Ordered Implementation Checklist
 
-**Input source:** VR controller trigger is already the chosen prototype (`app.xr.input` `select`). Preserve it while validating the feel on-device. Desktop still needs click-to-fire through the same `Game.shoot()` path. Gaze dwell remains a fallback only if controller-free headset support becomes a requirement; do not implement it pre-emptively.
+Each milestone should be independently playable and measured. Extend the current owning scripts first; do not pre-create a procgen directory, generic mesh framework, or DifficultyCurve class. Add a helper only when it earns its complexity and compressed bytes.
 
-**Bolt visual.** A thin stretched quad or tapered cylinder scaled along its length from `hornTip` to the hit point over ~0.1s (ease-out), then destroyed and replaced by the impact particle burst (§7). Reuse one pooled entity rather than creating/destroying per shot.
+### M1. Complete the Playable Loop
 
-## 7. Particle Design — JS13K-Optimized
+- [ ] Resolve hit-fruit persistence and aiming model decisions in section 2; update the GDD when approved.
+- [ ] Add desktop Play, eye-height view, mouse look, click-to-fire, pointer-lock exit/pause, and restart through the same gameplay path as VR.
+- [ ] Fix nearest-hit ordering and visual endpoints; add a pause-aware cooldown, initially testing 0.35-0.5 seconds, with horn recharge feedback.
+- [ ] Fix pause boundaries, simultaneous expiry, and completion idempotence. Keep healing permanent.
+- [ ] Convert console-only victory into a win transition that stops spawning/shooting and offers a minimal visible result/replay before the elaborate finale exists.
+- [ ] Reset trees, fruits, coroutines, effects, cooldown, and session statistics reliably on replay.
 
-**Default to the engine's `pc.ParticleSystem` component, not hand-rolled simulation.** Since PlayCanvas is loaded externally and isn't part of the 13KB budget, every line of the emitter/integrator/sorting code inside `ParticleSystem` is free — only the config we write costs bytes. Reach for a custom system only if `ParticleSystem`'s feature set genuinely can't do something needed.
+**Acceptance:** finish and replay twice on desktop; enter/exit/re-enter XR without duplicate input or paused-state progression; regression tests cover nearest hit, double expiry, healed immunity/event-once, final win, and reset. Test head aiming early on a headset before investing in the horn asset.
 
-**No image assets for particle textures.** Shipping a PNG (or worse, a base64 blob, which is banned by the hard rules) wastes bytes and compresses poorly. Instead generate a tiny soft-dot texture at runtime with the 2D canvas API and reuse it everywhere:
+### M2. Make the Loop Enjoyable
 
-```typescript
-function createDotTexture(app: pc.Application, size = 16): pc.Texture {
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
-    const ctx = canvas.getContext('2d')!;
-    const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    grad.addColorStop(0, 'rgba(255,255,255,1)');
-    grad.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, size, size);
-    const texture = new pc.Texture(app.graphicsDevice, {width: size, height: size});
-    texture.setSource(canvas);
-    return texture;
-}
-```
+- [ ] Give active/urgent fruit a readable non-color cue and consistent gray-to-reward language.
+- [ ] Add wave pacing and a completion breather; preserve feasible reaction time during head turns.
+- [ ] Add the minimum shot/hit/rot/completion sound set and mute.
+- [ ] A/B test the single rainbow-chain rule; keep it only if it improves target choice.
+- [ ] Record run duration, hits, misses, expiries, and where players stall during development; do not ship analytics infrastructure.
 
-Create this **once** at startup and pass the same `pc.Texture` into `colorMap` for every emitter (hit bursts, ambient sparkle, final celebration) — one texture, zero asset bytes, shared everywhere.
+**Acceptance:** at least three short first-time playtests. Players understand the objective and urgency, experience recovery after a mistake, and can describe a target-selection choice. Compare completion time and rot rate with the unmodified loop; ask about neck fatigue. Revisit the 5-10 minute target with evidence.
 
-**Color over life via curves, not gradient images.** `ParticleSystem` accepts a `colorGraph` (`pc.CurveSet`) authored purely in code — numeric keyframes compress far better than any image and need no extra texture:
+### M3. Visual Identity and Runtime Stability
 
-```typescript
-const rainbow = new pc.CurveSet([
-    [0, 1, 0.5, 1], [1, 0, 0.5, 1] // r,g,b,a keyframe pairs per channel; drive hue via per-burst param instead if variety needed
-]);
-```
+- [ ] Add sky/fog/light balance and useful ground framing; preserve readable fruit in both gray and restored scenes.
+- [ ] Extend restoration into ground/flowers and add lightweight tree reactions/milestones.
+- [ ] Replace the horn and white beam with the small twisted horn and endpoint-correct rainbow bolt.
+- [ ] Implement bounded fruit/material and effect/texture reuse; verify cleanup and reset ownership.
+- [ ] Add sparse scenery/grass only if visual comparisons and remaining budget justify them.
 
-In practice, drive the *hue* per burst by setting `colorGraph`/`colorGraph2` (min/max random range) right before `.play()` to match the fruit's rolled color, rather than authoring many separate curve sets.
+**Acceptance:** compare start/half-restored/complete screenshots at the same view; desktop/mobile rendering and both XR eyes show unobstructed targets; no growing entity/material/texture counts over repeated runs; stable headset frame time during repeated hits. Retest rotated-tree fruit placement after visual layout changes.
 
-**Two emitter categories, reuse-pooled:**
-- *Ambient* (`loop: true`, low `rate`, long `lifetime`): sparkle above restored trees, drifting rainbow dust as trees progress, final-sequence sky celebration. Few live instances, always-on, so pooling isn't critical here — just gate visibility by tree progress.
-- *Bursts* (`oneShot: true`, `autoPlay: false`): fired on every hit. **Pre-create a small fixed pool (8-12 `pc.ParticleSystem` entities) at scene setup**, and round-robin `system.reset(); system.play();` on hit instead of instantiating a new entity+component per shot — avoids per-hit allocation and component-add overhead, which matters since hits can happen in quick succession under the difficulty curve.
+### M4. Payoff and Submission
 
-**Suggested burst parameters** (tune in-engine, but as a starting budget):
+- [ ] Stage a short final sequence: trees brighten, rainbow reveals, horn charges, burst/chord resolves, then a calm replay state.
+- [ ] Add a compact result and optional local best if budget permits. Do not postpone a working replay button for scoring polish.
+- [ ] Validate headset comfort, frame pacing, audio lifecycle, hosting, and production engine compatibility.
+- [ ] Update GDD/TODO/build documentation to reflect agreed behavior; remove superseded stubs when their replacements land.
+- [ ] Build the final archive, verify its contents and total size, and test the extracted production entry rather than only the development server.
 
-| Property | Value |
-|---|---|
-| `numParticles` | 16-24 |
-| `lifetime` | 0.4-0.6s |
-| `rate`/`rate2` | n/a (oneShot burst) |
-| `startVelocity` | small outward cone via `emitterShape: EMITTERSHAPE_SPHERE`, `initialVelocity` 1-3 |
-| `scaleGraph` | quick grow then shrink to 0 (puff) |
-| `blendType` | `BLEND_ADDITIVE` |
-| `depthWrite` | `false` |
-| `castShadows` | `false` |
+**Acceptance:** the ending is visible in VR without depending on a DOM overlay; it cannot fire twice; the game remains playable with sound muted; production ZIP stays below 13,312 bytes.
 
-**Perf guardrails:** cap total simultaneously-live particles across *all* emitters with one constant (e.g. `MAX_LIVE_PARTICLES`), never enable shadows/depth-write on particle materials, and validate on a mid-range mobile/VR GPU profile since this ships for headsets, not just desktop.
+## 7. Budget and Verification Rules
 
-## 8. Risks / Open Questions
+These are **provisional ceilings for incremental compressed size**, not measured feature estimates. Compression is non-additive; take before/after ZIP measurements for each change and reprioritize when a ceiling is exceeded.
 
-- Horn-aiming-in-VR is implemented but still unvalidated on-device; test whether camera-forward aim from an offset horn origin feels coherent before polishing it.
-- Tree restoration penalties are implemented, but completion is not exposed to `Game`/`FruitController`, so fully restored trees still have no spawning lock or win-condition integration.
-- Desktop Play/pointer-lock does not currently fire shots, making headset-free iteration unnecessarily difficult.
-- Shooting has no cooldown yet, so XR `select` events are accepted as quickly as they arrive.
-- Particle volume vs. VR headset GPU budget — needs on-device testing, not just desktop.
-- Procedural tree/grass generation cost at scene-build time (should be a one-time cost per entity, not per-frame) — verify with the metafile/profiler once implemented.
+| Remaining allocation | Bytes |
+| --- | ---: |
+| M1 input, correctness, phases, replay | 1,100 |
+| Wave pacing and optional chain | 600 |
+| Sound and shot/hit feedback improvements | 800 |
+| Scene, restoration accents, horn | 750 |
+| Finale and result | 800 |
+| Integration/performance fixes and reserve | 1,211 |
+| **Total current headroom** | **5,261** |
+
+Aim to finish planned features around **12,101 bytes**, leaving the reserve intact until late validation. If needed, drop dense grass, wind shaders, background music, extra fruit types, and local-best polish before cutting reliable input, fairness, audible/visible feedback, or the ending. Pooling belongs inside the measured feedback/stability work; it may cost bytes while saving runtime allocation.
+
+- Run `npm run lint` and the relevant regression tests after gameplay edits; extend the existing test files rather than inventing a parallel test harness.
+- Run `npm run build` after each meaningful feature and record ZIP delta, not just raw/minified source size. The build enforces the 13,312-byte ceiling.
+- Use a development metafile to locate raw-code hotspots, then verify actual ZIP savings; raw module sizes do not directly predict compressed contributions.
+- Profile CPU, stereo draw calls, transparent overdraw, and resource counts on the intended headset. At 72Hz the total frame budget is about 13.9ms; at 90Hz it is about 11.1ms. Leave margin, particularly during the finale.
+- Keep generated meshes static or update them only on progress changes; small animation transforms need no geometry rebuild. No new runtime libraries, encoded image blobs, or asset downloads outside the permitted engine setup.
+- Production builds replace the development `dist` contents. Coordinate builds with an active dev server and restore the dev workflow before further browser iteration.
+
+**Next implementation slice:** M1's desktop test path and fair shared shooting, with the matching regression tests. Then a minimal win/replay loop. Do not start another tree generator while the current game cannot yet be played end-to-end without a headset.

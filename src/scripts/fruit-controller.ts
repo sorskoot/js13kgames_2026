@@ -99,10 +99,10 @@ export class FruitController extends pc.Script {
 
         const randomOffsetX = position.x + (Math.random() * 1.5 - 0.75);
         const randomOffsetY = position.y + (Math.random() * 1.5 - 0.75);
-        fruit.setPosition(randomOffsetX, randomOffsetY, position.z);
         fruit.setLocalScale(0.35, 0.35, 0.35);
 
         this.trees[treeIndex].entity.addChild(fruit);
+        fruit.setLocalPosition(randomOffsetX, randomOffsetY, position.z);
     }
 
     hitFruit(fruit: pc.Entity) {
