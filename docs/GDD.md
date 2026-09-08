@@ -26,14 +26,16 @@ The player stands in the center of a small magical orchard surrounded by five tr
 
 Colorless fruit appears on the trees. Each fruit has a limited lifetime.
 
-The player aims by moving their head and shoots rainbow energy from the horn.
+The player aims by looking toward fruit and fires with the XR controller trigger. The tracked headset's center-view ray determines the aim point; the first fruit crossed by the visible beam from the horn tip receives the hit.
 
 When a fruit is hit:
 
-- The fruit becomes colorful.
-- A burst of colored particles is emitted.
-- The tree gains restoration progress.
-- The fruit remains on the tree as a permanent colored fruit.
+- A burst of particles in the tree's assigned fruit color is emitted.
+- The tree gains restoration progress once.
+- The fruit immediately disappears and is removed from targeting and decay, freeing its spawn slot.
+- Restored tree color and environmental accents provide lasting feedback instead of permanent colored fruit.
+
+Hit fruit does not remain as decoration. Keeping the canopy clear makes new targets easier to read and avoids the entity, state, and byte cost of a persistent-fruit collection.
 
 If a fruit is not hit before its timer expires:
 
@@ -44,7 +46,7 @@ The player must continuously scan the orchard and prioritize which fruit to shoo
 
 ## Progression
 
-Each tree requires a number of successfully colored fruits to become fully restored.
+Each tree requires restoration progress from successful fruit hits to become fully restored. Rot can reduce that progress until the tree is fully restored.
 
 As a tree progresses, its appearance changes:
 
@@ -79,9 +81,13 @@ The player does not need to walk.
 
 Head movement is the primary interaction:
 
-Look around to locate fruit.
-Tilt the head downward to aim the horn.
-Fire the rainbow projectile toward the horn's direction.
+- Look around to locate fruit and aim with the center of the tracked headset view.
+- Press the XR controller trigger to fire. Controller pointing does not determine aim.
+- The horn is the visual firing origin, not the targeting axis; no artificial downward head tilt is required.
+
+Use a world-space hitscan ray from the tracked XR viewer's center pose along its forward direction to choose an aim point at the nearest nonnegative fruit intersection, or a fixed-range point when nothing is aimed at. Then test the finite segment from the actual horn tip to that aim point. The first fruit intersected by this visible beam receives the hit, and the beam ends at that impact. Preserve the gaze target when no earlier beam intersection exists, including exact endpoint contact. Do not add projectile physics or a second aiming mode.
+
+Validate the implementation on-device with near and far targets, overlapping fruit, headset translation and rotation, and both eyes. The selected design must follow the live XR viewer pose and remain comfortable without relying on a desktop camera transform or fallback controls.
 
 The lack of locomotion keeps the experience comfortable and allows the entire game to focus on aiming, timing and visual feedback.
 

@@ -16,6 +16,8 @@ Must Have:
         ✓ Remove fruit when hit @done(26-09-03 22:31)
     ✓ Win state when all trees are healed @done(26-09-07 12:20)
     ✓ Start game when entering VR @done(26-09-08 14:23)
+    ✓ Harden XR lifecycle and shooting (automated and browser checks) @done(26-09-08)
+    ☐ Validate native XR session transitions, aiming, and comfort on the target headset
 
 Should Have:
     ✓ Particles @done(26-09-08 14:23)
@@ -23,7 +25,7 @@ Should Have:
     Better scene:
         ✓ Better looking trees @done(26-09-08 14:23)
         ☐ Sky
-    ☐ timeout on shooting
+    ✓ timeout on shooting (0.4s, pause-aware) @done(26-09-08)
     ☐ Instead of creating fruit dynamically, use a pool of pre-created fruit entities
     ☐ Pool fruit materials
 
@@ -31,7 +33,7 @@ Should Have:
 Could Have:
     ☐ Background environment (mountains, forrest, etc)
     ☐ Music
-    ☐ Add visualization of cooldown for the horn
+    ✓ Add visualization of cooldown for the horn (emissive recharge) @done(26-09-08)
     ☐ Sprites or textures for the spheres
     ☐ Using shader to animate trees and grass
         ~ https://playcanvas.com/examples/#/shaders/trees

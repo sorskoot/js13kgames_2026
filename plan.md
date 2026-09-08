@@ -1,6 +1,6 @@
 # Unicorns and Rainbows - Implementation Plan
 
-Updated 2026-09-08 against the current working tree, `todo`, `docs/GDD.md`, the build pipeline, and regression tests. This is a planning update, not an implementation of the proposed features. Uncommitted gameplay changes are included in the assessment.
+Updated 2026-09-08 against the current working tree, `todo`, `docs/GDD.md`, the build pipeline, and regression tests. XR lifecycle/shooting hardening is now implemented and automatically verified; later milestones remain planned. Uncommitted gameplay changes are included in the assessment.
 
 **Recommendation:** finish a fair, replayable loop, add one small mechanic that rewards choosing targets, then make restoration transform the whole scene. Keep the baked trees and existing particle runtime. A new recursive tree generator and a second particle system are no longer priorities.
 
@@ -10,25 +10,26 @@ Updated 2026-09-08 against the current working tree, `todo`, `docs/GDD.md`, the 
 
 | Area | Current implementation | Still missing |
 | --- | --- | --- |
-| VR | Controller trigger fires camera-forward hitscan from the horn entity's world position. Successful XR start unpauses gameplay; XR exit pauses it. | On-headset aiming/comfort validation and robust session lifecycle checks. |
-| Non-XR preview | Scene may render outside a headset; desktop Play/Restart/pointer-lock handlers are commented-out stubs. | No desktop gameplay or framing requirement. Do not implement the stubs; remove obsolete desktop-only scaffolding during cleanup. |
+| VR | Controller trigger uses the engine-updated viewer-center camera pose for nearest-hit hitscan. Duplicate starts and failed starts are guarded; exit/visibility loss pauses gameplay, and a fresh visible tracked frame resumes it. Event listeners are removed on destruction. | Native headset session, aiming, stereo, and comfort validation. |
+| Non-XR preview | Scene may render outside a headset. Desktop Play/Restart markup, input stubs, and keyboard escape handling have been removed. Only XR entry UI remains. | No desktop gameplay or framing requirement. |
 | Orchard | Five trees arranged in a forward-facing arc, rotated toward the player. Cone horn, green plane, bright cyan background, one directional light. | Cohesive sky, ground/horizon, scene framing, better horn. Not a finished gray-to-color world yet. |
 | Trees | `src/lib/tree/data.ts` is a fixed seed-42 baked asset: 93 source vertices, 178 triangles, quantized positions and RGB data. `pc.ts` expands it into a flat-shaded, vertex-colored mesh. | Distinct restoration milestones, environmental response, small visual variation. No runtime branching generator is needed. |
 | Restoration | Each tree independently desaturates its original mesh colors. Hits add 0.1, rot subtracts 0.1, rounded and clamped. `isHealed` and `tree:healed` exist. | A hard completion guard inside `Tree` itself; milestone feedback beyond continuous saturation. |
 | Fruit | Spawn every 3-5 seconds per tree, cap five active per tree, randomized local X/Y in front of the canopy at local Z=2. Both hit and expiry remove fruit and free capacity. | Pooling of fruit/entities/materials, clearer active/urgent visual states. |
-| Decay | Starts gray; the next decay updates interpolate from the tree's assigned fruit color toward brown. Lifetime is roughly ten seconds through coroutine ticks. Rot costs 10% restoration. | Gray-until-hit consistency, pause-safe timing, robust simultaneous expiry. |
+| Decay | Starts gray; decay interpolates from the assigned fruit color toward brown over roughly ten seconds of unpaused coroutine ticks. Rot costs 10% restoration. Pausing freezes in-flight spawn/decay timers; reverse iteration handles adjacent expiries in the same tick. | Gray-until-hit consistency. |
 | Tree completion | The controller clears remaining fruit on the completing hit, excludes healed trees from normal spawning, and avoids applying further rot through its normal path. | Idempotent completion regardless of caller, regression coverage for these behaviors. |
 | Win | `Game.onTreeHealed()` checks all five flags and logs a win. | A real win phase, stopped gameplay, visible celebration/result, replay. The TODO's checked win item means detection exists, not that the ending is finished. |
-| Feedback | A reused white beam lasts about 0.2 seconds. Hits call `p13kFx`, use the tree's assigned fruit color, and clean up the effect entity and texture after two seconds or controller destruction. | Cooldown, endpoint-correct rainbow bolt, emitter/texture reuse, audio, ambient/finale effects. Particles are already implemented. |
-| State | `GameState.isPaused` plus `Game.inVR`; gameplay uses coroutines. | Distinguish session availability, pause, playing, and won state without competing booleans. |
+| Feedback | Reused white beam connects the actual cone tip to the impact or a 20-unit viewer-ray miss endpoint for 0.2 seconds. Shots have a pause-aware 0.4-second cooldown and emissive horn recharge feedback. Hit effects use a separate cleanup scheduler that advances even when gameplay is paused. | Rainbow styling, emitter/texture reuse, audio, ambient/finale effects. |
+| State | XR start/end/visibility/update events control session state and pose readiness. `GameState.isPaused` gates gameplay timers and input; effect cleanup is independent. | Add a won phase without allowing XR resume to restart finished gameplay. |
 
 ### Build and Tests
 
-- `npm run build`: **8,051-byte `dist/Unicorn.zip`**, **60.5%** of the **13,312-byte** limit; **5,261 bytes remain**. Build reports a 19.3KB minified `b.js`.
-- Previous recorded ZIP: 3,602 bytes on 2026-09-06. Growth since that snapshot: **4,449 bytes**. This is a whole-build difference, not a measured attribution to any one feature.
+- `npm run build`: **8,417-byte `dist/Unicorn.zip`**, **63.2%** of the **13,312-byte** limit; **4,895 bytes remain**. Build reports a 20.8KB minified `b.js`.
+- Before XR hardening: 8,051 bytes. This slice adds **366 compressed bytes net**, including desktop-stub removal. Compared with the 3,602-byte snapshot from 2026-09-06, total growth is **4,815 bytes**.
 - `npm run lint`: passed.
-- `node --test scripts/tree.test.ts scripts/tree-gameplay.test.ts`: **4/4 passed**. Coverage includes mesh bounds/topology/normals, independent restoration colors, and fruit placement on all five rotated/translated trees.
-- These tests do **not** prove hitscan ordering, pause correctness, completion idempotence, win/restart, particle cleanup, or headset performance. Those checks remain below.
+- `node --test scripts/tree.test.ts scripts/tree-gameplay.test.ts`: **14/14 passed**. Coverage includes the previous mesh/restoration/placement checks plus session rejection/re-entry/visibility, entry UI and listener cleanup, the actual engine viewer-pose update, nearest-hit geometry, beam endpoints, cooldown/recharge reset, paused timers, and simultaneous expiry.
+- Browser smoke test with temporary external XR-state simulation: real controller event produced one hit and burst, cooldown rejected a duplicate, pause hid the beam, effects cleaned up, no page errors, and nonblank canvas pixels. No testing controls or desktop support were shipped. The browser engine reported 2.21.3; headless tests use the installed npm engine.
+- Native headset behavior, comfort/performance, completion idempotence, and win/restart are **not** verified by these tests. The browser simulation is not a substitute for on-device validation.
 - The earlier non-XR preview inspection is not an XR playtest and does not establish a camera/framing defect to fix. Judge framing, scale, and target visibility from the tracked headset view in both eyes.
 
 The production ZIP contains generated HTML and bundled game JavaScript, including baked mesh data and our particle runtime. The hosted PlayCanvas engine is excluded by the existing WebXR build setup. Engine implementation bytes are excluded; our configuration, helpers, shaders, geometry data, and ZIP overhead still count. Engine features also still cost GPU/CPU time. Confirm the permitted engine URL/version and hosted availability before submission.
@@ -46,24 +47,28 @@ The repository `todo` is the durable task source. The `manage_todo_list` tool ex
 - [x] Tree healing/progress, color restoration, completion event, and normal-path spawn lock.
 - [x] All-trees-healed detection, with a console-only result.
 - [x] Better-looking baked trees and colored hit particles.
+- [x] XR lifecycle/input hardening, viewer-center nearest-hit shooting, beam endpoints, cooldown/recharge, pause-safe fruit timers, and adjacent expiry handling, verified automatically.
 
-The TODO's "Score when fruit is hit" is currently restoration progress, not a separate displayed score. Its primitive-tree description is obsolete. Its open sound, sky, cooldown, fruit/material pooling, environment, music, shader animation, and better-horn items are retained and prioritized below.
+The TODO's "Score when fruit is hit" is currently restoration progress, not a separate displayed score. Its primitive-tree description is obsolete. Cooldown and initial horn recharge feedback are now done. Open sound, sky, fruit/material pooling, environment, music, shader animation, and better-horn items remain prioritized below.
 
-### Resolve Before Expanding Scope
+### Decisions and Remaining Validation
 
-1. **Hit fruit: disappear or persist?** The GDD says permanent colored fruit; the implementation and checked TODO explicitly remove hit fruit. Recommend keeping the satisfying burst-and-disappear behavior, with lasting color/flowers on the tree as the reward. This improves target readability and bounds entity count. This recommendation is not an approved GDD change. If permanent fruit wins, maintain a separate, non-targetable, non-decaying decorative set capped at ten per tree; rot/recovery must not accumulate unlimited ornaments.
-2. **Aiming model:** the GDD describes horn-direction aiming; current code uses camera-forward from the horn entity center. Recommend testing camera-center targeting with a visual bolt from the actual horn tip. This avoids offset-ray parallax, but XR center-eye tracking and near-target behavior must be verified on-device before selecting the final model.
+The first two decisions were selected on 2026-09-08 under delegated decision-making and are reflected in `docs/GDD.md`. Removal and viewer-center aiming are implemented; native headset validation is still required.
+
+1. **Hit fruit: burst and disappear.** A successful hit emits particles in the tree's assigned fruit color, grants restoration once, and immediately removes the fruit from targeting and decay, freeing its spawn slot. Do not retain permanent colored fruit or add a decorative-fruit collection. The tree's restored color and later environmental accents carry the lasting feedback; progress can still fall through rot until the tree is fully healed. This matches existing removal behavior, keeps new targets readable, and avoids extra entities, state, and bytes.
+2. **Aiming model: head-look targeting, horn-tip visual.** Use one ray from the tracked XR viewer's center pose in its forward direction, not from an individual eye or the horn. Resolve the nearest nonnegative fruit intersection along that ray. Draw the cosmetic bolt from the actual horn tip to the resolved impact, or to a 20-unit point on the same viewer ray for a miss. This is implemented using the camera node that PlayCanvas updates from `XRViewerPose.transform`; a regression drives the real engine update with translated/rotated viewer poses. The horn's geometric axis does not control targeting, and aiming does not require an artificial downward head tilt. Validate near/far targets, both eyes, and comfort on-device before release; do not introduce a second aiming mode or desktop fallback.
 3. **Run length:** retain the GDD's 5-10 minute target provisionally, but measure whether it stays interesting. Fifty net normal hits restore the orchard. Five independent four-second-average spawners can supply roughly 1.25 fruit/second before trees finish, so the existing numbers do not establish a five-minute game. Do not stretch play by adding idle waits or simply multiplying hit requirements; propose a shorter target only after playtesting and an explicit GDD decision.
 4. **Art production:** keep the proven baked tree rather than replacing it to satisfy the old procedural-only roadmap. Compare ZIP size before choosing baked data versus tiny generators for any new asset. No new runtime dependencies.
 
 ## 3. First Fix Fairness and Readability
 
-These are code-review observations and planned checks, not fixes made by this document.
+The shooting/pause fixes below are implemented; completion invariants and visual-language changes remain follow-up work.
 
-- **Nearest target:** `Game.shoot()` ranks candidates by distance from the ray to the fruit center. A farther but better-centered fruit can win. Rank nonnegative ray/sphere intersection distances instead. Test overlapping targets, miss/tangent, behind-camera, and origin-inside-sphere cases. Keep the linear scan; no physics library is necessary.
-- **Shot placement:** the current fixed-length box is centered on its origin and is not shortened to a hit. Place the reused visual between the horn tip and resolved impact/miss endpoint. Preserve a small, deliberate hit-radius allowance only after headset testing.
-- **Pause and input:** `waitForSeconds` keeps consuming update time after a pause if already running; condition waits are not an atomic pause guard. Prevent paused spawns, decay, and shots at the owning gameplay boundary. Separate gameplay time from effect cleanup so pausing cannot leak transient effects.
-- **Expiry iteration:** `updateFruits()` removes entries from `activeFruits` during forward iteration, which can skip the next fruit in that tick. Test two adjacent expiries together and ensure each penalty/removal happens once.
+- **Nearest target (done):** `Game.shoot()` ranks nonnegative sphere-surface intersection distances, including the exit intersection when the viewer is inside a sphere. Tests cover overlapping targets, tangency, misses, and targets behind the viewer. No physics dependency was added.
+- **Aim origin (done):** the camera's world pose is sourced from the engine's XR viewer update. No shot is accepted before a fresh visible tracked frame after session start or visibility change.
+- **Shot placement (done):** the reused beam is centered and scaled between the actual cone tip and resolved endpoint. Rainbow styling and headset tuning of the existing hit-radius allowance remain later work.
+- **Pause and input (done):** lifecycle and current XR state gate shots; a 0.4-second cooldown freezes while paused. Fruit gameplay coroutines do not advance during pause, while effect cleanup uses a separate scheduler. Controller/game/UI listeners are removed at teardown.
+- **Expiry iteration (done):** reverse iteration removes adjacent expired fruit in the same tick, with one penalty per fruit; regression coverage is in place.
 - **Completion:** controller guards protect the normal path, but direct `Tree.hitFruit()` can re-emit completion and `Tree.rotFruit()` can desaturate a healed tree. Guard the invariant in `Tree`; transition to win exactly once.
 - **Visual language:** active targets should remain recognizably gray until hit; use a shrinking stem/ring, subtle pulse, or droop for urgency alongside browning. Do not rely on red/green or hue alone. Keep the brighter reward colors for successful restoration.
 
@@ -140,10 +145,12 @@ Each milestone should be independently playable and measured. Extend the current
 
 ### M1. Complete the Playable Loop
 
-- [ ] Resolve hit-fruit persistence and aiming model decisions in section 2; update the GDD when approved.
-- [ ] Harden XR entry, exit, and re-entry, pause/resume, and controller input lifecycle. Keep gameplay headset-only; do not implement the desktop stubs.
-- [ ] Fix nearest-hit ordering and visual endpoints; add a pause-aware cooldown, initially testing 0.35-0.5 seconds, with horn recharge feedback.
-- [ ] Fix pause boundaries, simultaneous expiry, and completion idempotence. Keep healing permanent.
+- [x] Resolve hit-fruit persistence and aiming model decisions in section 2 and update the GDD: burst-and-disappear, tracked headset-center targeting, horn-tip visual.
+- [x] Harden XR entry, exit, and re-entry, pause/resume, and controller input lifecycle; remove desktop stubs. Automated verification complete.
+- [x] Implement tracked XR viewer-center aiming, nearest-hit ordering, horn-tip visual endpoints, a pause-aware 0.4-second cooldown, and horn recharge feedback.
+- [x] Fix pause boundaries and simultaneous expiry without blocking effect cleanup.
+- [ ] Validate native session transitions, aiming, both eyes, and comfort on the target headset.
+- [ ] Guard completion idempotence inside `Tree` and keep healing permanent.
 - [ ] Convert console-only victory into a win transition that stops spawning/shooting and offers a headset-visible result with controller-operated replay before the elaborate finale exists.
 - [ ] Reset trees, fruits, coroutines, effects, cooldown, and session statistics reliably on replay.
 
@@ -185,15 +192,15 @@ These are **provisional ceilings for incremental compressed size**, not measured
 
 | Remaining allocation | Bytes |
 | --- | ---: |
-| M1 XR lifecycle/input, correctness, phases, headset replay | 1,100 |
+| M1 remaining completion invariants, phases, headset replay | 734 |
 | Wave pacing and optional chain | 600 |
 | Sound and shot/hit feedback improvements | 800 |
 | Scene, restoration accents, horn | 750 |
 | Finale and result | 800 |
 | Integration/performance fixes and reserve | 1,211 |
-| **Total current headroom** | **5,261** |
+| **Total current headroom** | **4,895** |
 
-Desktop-specific allocation is **0 bytes**, including desktop-only testing conveniences in shipped code. The M1 ceiling is exclusively for the XR loop; unused budget stays in reserve. This documentation change does not itself save runtime bytes or change the measured build baseline.
+Desktop-specific allocation is **0 bytes**, including desktop-only testing conveniences in shipped code. XR hardening consumed 366 bytes net from the original 1,100-byte M1 allocation, leaving 734 bytes provisionally for its remaining work. Unused budget stays in reserve; the numbers are planning ceilings, not promises of feature size.
 
 Aim to finish planned features around **12,101 bytes**, leaving the reserve intact until late validation. If needed, drop dense grass, wind shaders, background music, extra fruit types, and local-best polish before cutting reliable input, fairness, audible/visible feedback, or the ending. Pooling belongs inside the measured feedback/stability work; it may cost bytes while saving runtime allocation.
 
@@ -204,4 +211,4 @@ Aim to finish planned features around **12,101 bytes**, leaving the reserve inta
 - Keep generated meshes static or update them only on progress changes; small animation transforms need no geometry rebuild. No new runtime libraries, encoded image blobs, or asset downloads outside the permitted engine setup.
 - Production builds replace the development `dist` contents. Coordinate builds with an active dev server and restore the dev workflow before further browser iteration.
 
-**Next implementation slice:** M1's fair VR shooting and XR lifecycle correctness, with the matching regression tests. Then a minimal headset-visible win/replay loop. Desktop support is not a prerequisite for any milestone; spend those bytes on the WebXR experience.
+**Next implementation slice:** completion invariants and a minimal headset-visible win/replay loop, with matching regression tests. On-device verification of the completed XR hardening remains a release gate. Desktop support is not a prerequisite for any milestone; spend those bytes on the WebXR experience.

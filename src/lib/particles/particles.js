@@ -298,8 +298,9 @@ function p13kFx(app, sys, parent) {
         let dp = Math.max(0.05, 1 - dg * 0.45),
             en = new pc.Entity('p13k_' + i);
         en.addComponent('particlesystem', {
-            numParticles: num,
-            rate: rate,
+            numParticles: bu > 0 ? Math.min(bu, num) : num,
+            rate: bu > 0 ? 0 : rate,
+            rate2: bu > 0 ? 0 : rate,
             lifetime: life,
             emitterShape: sh == 2 ? pc.EMITTERSHAPE_BOX : pc.EMITTERSHAPE_SPHERE,
             emitterExtents: new pc.Vec3(sx, sy, sz2),
@@ -334,16 +335,6 @@ function p13kFx(app, sys, parent) {
         });
         en.setLocalPosition(px, py, pz);
         (parent || app.root).addChild(en);
-        if (bu > 0) {
-            let ps = en.particlesystem;
-            ps.loop = false;
-            setTimeout(() => {
-                try {
-                    ps.reset();
-                    ps.play();
-                } catch (_) {}
-            }, 30);
-        }
         out.push(en);
     }
     return out;

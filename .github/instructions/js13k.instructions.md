@@ -1,61 +1,57 @@
 ---
-description: JS13K Game Development Instructions for AI
+description: 'Use when writing, reviewing, or optimizing JS13K game code, assets, and build tooling.'
 name: JS13K Game Development
+applyTo: 'src/**,lib/**,scripts/**,index.html,package.json,tsconfig.json'
 ---
 
-This file defines hard rules and project-specific conventions for AI-generated code in this repository.
+# JS13K Game Development
 
-## Purpose
+## Hard Constraints
 
-- Enforce JS13K-friendly code style and decisions.
-- Keep generated code small, zip-friendly, and compatible with the existing `esbuild` production pipeline.
-- Avoid common web game patterns that are too large or inappropriate for a 13KB zipped bundle.
+- The final production ZIP must not exceed 13,312 bytes, including archive overhead.
+- Minimize shipped bytes while preserving required gameplay, correctness, and acceptable headset performance.
+- Do not add runtime dependencies or external resources beyond the configured PlayCanvas engine.
+- Target immersive WebXR only. Do not ship desktop controls, fallback gameplay, or desktop-specific UI.
+- Preserve the minimal browser entry needed to launch an XR session. Gameplay and replay must work in-headset.
+- Keep browser runtime code free of Node-only modules.
+- Preserve compatibility with the existing esbuild and advzip production pipeline.
 
-## Scope
+## Measure the Actual Submission
 
-- Apply to all source code and game assets in this repository, especially `src/**/*`, `index.html`, and `src/index.css`.
-- Apply to generated code, edits, answers, refactors, and review feedback.
-- Rules that specifically target production output, such as removing dead code, unused variables, comments, and debug-only branches, apply only to shipped or generated production code, not to explanatory answers or review feedback.
+- Treat the final ZIP produced by `npm run build` as the size authority.
+- For size optimizations, measure before and after using the same build configuration. Report the byte delta and remaining budget.
+- Do not claim savings from source length, minified JavaScript size, or gzip estimates alone.
+- For feature changes, report the final ZIP size and budget impact when a baseline is available.
+- Do not silently remove required behavior or weaken validation to meet the limit.
+- If measurement is unavailable, state that savings are unverified.
 
-## Hard Rules
+## Code and Engine Reuse
 
-1. Bundle size is the top priority.
-    - Do not add new runtime dependencies or any libraries.
-    - Prefer plain code and built-in browser APIs over abstractions.
-    - Avoid classes, helper libraries, and utility packages unless the abstraction is called in 3 or more distinct locations and saves more bytes than it adds.
-2. Favor zip-friendly data formats.
-    - Use raw numeric arrays, typed arrays, or compact strings instead of verbose JSON objects.
-    - Prefer repeated numbers and simple ASCII text; they compress much better than encoded blobs.
-    - Avoid base64, hex encoding, or other encodings that inflate size and compress poorly.
-    - Keep asset data in formats that work well with standard zip compression.
-3. Avoid unnecessary code and metadata.
-    - Remove dead code, unused variables, comments, and debug-only branches in production output.
-    - Do not emit extra bootstrap or helper functions unless strictly needed.
-    - Keep functions small and direct; avoid over-abstraction.
-4. Use efficient code patterns for JS13K.
-    - Prefer array-based data packing over object-heavy structures when representing meshes, levels, or animation data.
-    - Use concise syntax, local variable reuse, and simple loops instead of heavy abstractions.
-    - Do not use JSON parsing or string decoding for game data unless it is smaller after compression than the equivalent raw code. When compression outcome is unknown, prefer raw numeric arrays over JSON parsing.
-5. Keep asset and HTML output minimal.
-    - Use a single bundled script and minimal CSS.
-    - Avoid large inline data URIs in HTML or CSS unless they are demonstrably smaller after zipping.
-    - Do not include unused assets or markup.
-6. Keep the build pipeline compatible.
-    - Generated code must work with the existing `scripts/build.ts` and `esbuild` setup.
-    - Do not depend on node-only modules in browser runtime code.
+- Prefer small, direct implementations and existing project functionality over speculative abstractions.
+- Reuse the configured external PlayCanvas engine when it reduces shipped code; do not reimplement available engine features solely to avoid using PlayCanvas.
+- Preserve `import * as pc from 'playcanvas'`, which the build plugin recognizes. Do not assume other runtime import forms work.
+- Keep framework-required classes. Do not use an arbitrary call-count threshold for helpers; measure size-motivated extraction or inlining.
+- Keep descriptive TypeScript names and normal formatting. Let esbuild minify.
+- Evaluate TypeScript constructs by their emitted JavaScript. Do not remove erased types or source comments merely to save production bytes.
+- Always use braces for control structures. Avoid deeply nested code without introducing unnecessary abstractions.
+- Preserve existing comments beginning with `TK`. Add comments only when requested.
 
-## Principles
+## Assets and Data
 
-- Small byte size > readability for production code in this repo.
-- If a choice increases runtime size, reject it unless the gain is compelling.
-- If data is dense and repetitive, keep it in raw numeric form rather than compressed strings.
-- Prefer explicit, low-overhead code over indirection.
-- Treat PlayCanvas and external imports as expensive; avoid them when a simpler browser-native implementation is sufficient.
+- Default to raw numeric arrays for dense mesh, level, and animation data.
+- Treat compression heuristics as defaults, not guarantees. Compare complete representations, including decoding and initialization code.
+- Typed arrays affect runtime storage; numeric literals do not automatically become compact binary asset data.
+- Use reduced precision or quantization only within acceptable visual and gameplay error.
+- Compare procedural generation plus parameters against baked data before choosing on size grounds.
+- Use encoded strings, JSON parsing, or data URIs only when measured total ZIP savings justify them.
+- Ship one game bundle plus the configured engine script, minimal HTML/CSS, and only assets actually used.
 
-## Guidance for AI
+## Runtime and Verification
 
-- When asked to generate or refactor game code, choose the smallest workable implementation.
-- When asked to add content, choose formats that compress well and reduce bundle weight.
-- When asked to review code, flag anything that adds size without a strong functional need.
-- Ask clarifying questions if a requested feature conflicts with size constraints or the JS13K nature of the project.
-- If the user explicitly requests something that violates a hard rule (e.g., adding a library or using base64), refuse the specific violation, explain why it conflicts with JS13K constraints, and offer the nearest compliant alternative.
+- Avoid unnecessary work and allocations in frame-update paths. Add pooling or caching only for a demonstrated need.
+- Keep tests and development tools outside the production import graph.
+- Use the existing `DEBUG` build constant for development-only paths; verify those paths and their supporting code are absent from production.
+- After runtime changes, run relevant regression tests, `npm run lint`, and `npm run build`.
+- Validate XR-sensitive changes on the intended headset. Report missing device validation explicitly; desktop previews are not substitutes.
+- For instruction-only or documentation-only changes, check the changed files without rebuilding the game.
+- Keep edits scoped to the request. Ask before changing hard constraints, gameplay requirements, or build configuration.

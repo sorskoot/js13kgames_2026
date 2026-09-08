@@ -3,9 +3,6 @@ import {addScript} from '../helpers/pcUtils.js';
 import {Tree} from './tree.js';
 import {Controllers} from './controllers.js';
 import {FruitController} from './fruit-controller.js';
-import {CoroutineManager} from '@/coroutines/CoroutineManager.js';
-import {Coroutine} from '@/coroutines/Coroutine.js';
-import {waitForCondition, waitForSeconds} from '@/coroutines/YieldInstructions.js';
 import {GameState} from './GameState.js';
 
 export class Game extends pc.Script {
@@ -17,8 +14,12 @@ export class Game extends pc.Script {
     declare private camera: pc.CameraComponent;
     declare private fruitController: FruitController;
     declare private horn: pc.Entity;
-    declare private coroutineManager: CoroutineManager;
     private trees: Tree[] = [];
+    private xrStarting = false;
+    private poseReady = false;
+    private shotCooldown = 0;
+    private shownCooldown = -1;
+    private rayTime = 0;
 
     initialize() {
         this.app.scene.ambientLight = new pc.Color(0.4, 0.4, 0.4);
@@ -27,7 +28,6 @@ export class Game extends pc.Script {
         this.camera = this.cameraEntity.addComponent('camera', {
             clearColor: new pc.Color(0.2, 1.0, 1.0)
         }) as pc.CameraComponent;
-        this.cameraEntity.setPosition(0, 0, 4);
         this.app.root.addChild(this.cameraEntity);
         addScript<Controllers>(this.app.root, 'controllers');
 
@@ -75,7 +75,7 @@ export class Game extends pc.Script {
         });
 
         this.app.root.addChild(tree);
-        tree.setPosition(0, 0, -4);
+        tree.setPosition(0, 0, -10);
 
         const tree2 = new pc.Entity('tree');
         const tree2Script = addScript<Tree>(tree2, 'tree');
@@ -87,7 +87,7 @@ export class Game extends pc.Script {
             fruitColor: new pc.Color(0.55, 1, 0.55)
         });
         this.app.root.addChild(tree2);
-        tree2.setPosition(3, 0, -3);
+        tree2.setPosition(6, 0, -8);
         tree2.setEulerAngles(0, -45, 0);
 
         const tree3 = new pc.Entity('tree');
@@ -100,7 +100,7 @@ export class Game extends pc.Script {
             fruitColor: new pc.Color(0.55, 0.55, 1)
         });
         this.app.root.addChild(tree3);
-        tree3.setPosition(-3, 0, -3);
+        tree3.setPosition(-6, 0, -8);
         tree3.setEulerAngles(0, 45, 0);
 
         const tree4 = new pc.Entity('tree');
@@ -113,7 +113,7 @@ export class Game extends pc.Script {
             fruitColor: new pc.Color(1, 0.55, 1)
         });
         this.app.root.addChild(tree4);
-        tree4.setPosition(6, 0, 0);
+        tree4.setPosition(8, 0, 0);
         tree4.setEulerAngles(0, -90, 0);
 
         const tree5 = new pc.Entity('tree');
@@ -126,87 +126,153 @@ export class Game extends pc.Script {
             fruitColor: new pc.Color(0.55, 1, 1)
         });
         this.app.root.addChild(tree5);
-        tree5.setPosition(-6, 0, 0);
+        tree5.setPosition(-8, 0, 0);
         tree5.setEulerAngles(0, 90, 0);
-
-        // const cube = new pc.Entity('cube');
-        // cube.addComponent('render', {
-        //     type: 'box',
-        //     material: new pc.StandardMaterial(),
-        // });
-        // (cube.render!.material as pc.StandardMaterial).diffuse = new pc.Color(0.25, 0.85, 0.95);
-        // cube.render!.material.update();
-        // cube.setPosition(0, 0, -2);
-        // this.app.root.addChild(cube);
-        // const cubeScripts = cube.addComponent('script')! as pc.ScriptComponent;
-        // cubeScripts.create('rotate');
 
         this.app.root.on('xr:onTrigger', this.shoot, this);
         this.app.root.on('tree:healed', this.onTreeHealed, this);
+        const xr = this.app.xr;
+        xr?.on('start', this.onXRStart, this);
+        xr?.on('end', this.onXREnd, this);
+        xr?.on('visibility:change', this.pauseXR, this);
+        xr?.on('update', this.onXRUpdate, this);
+        this.once('destroy', () => {
+            this.app.root.off('xr:onTrigger', this.shoot, this);
+            this.app.root.off('tree:healed', this.onTreeHealed, this);
+            xr?.off('start', this.onXRStart, this);
+            xr?.off('end', this.onXREnd, this);
+            xr?.off('visibility:change', this.pauseXR, this);
+            xr?.off('update', this.onXRUpdate, this);
+            this.onXREnd();
+            this.rainbowRay?.render?.material.destroy();
+            this.rainbowRay?.destroy();
+        });
         this.fruitController.startSpawning();
-        this.coroutineManager = new CoroutineManager();
     }
 
     update(dt: number) {
-        this.coroutineManager.update(dt);
+        if (!GameState.isPaused) this.shotCooldown = Math.max(0, this.shotCooldown - dt);
+        this.rayTime -= dt;
+        if (this.rayTime <= 0 && this.rainbowRay) this.rainbowRay.enabled = false;
+        if (this.shownCooldown !== this.shotCooldown) {
+            this.shownCooldown = this.shotCooldown;
+            const charge = 1 - this.shotCooldown / 0.4;
+            (this.horn.render!.material as pc.StandardMaterial).emissive.set(charge, charge, charge);
+            this.horn.render!.material.update();
+        }
     }
 
     startXR() {
-        // sound.InitAudio();
-        this.camera.startXr(pc.XRTYPE_VR, pc.XRSPACE_LOCALFLOOR, {
-            callback: err => {
-                if (err) {
-                    console.error('WebXR Immersive VR failed to start: ' + err.message);
-                    this.inVR = false;
-                    GameState.isPaused = true;
-                } else {
-                    this.inVR = true;
-                    GameState.isPaused = false;
-                }
-            }
-        });
+        const xr = this.app.xr;
+        if (this.xrStarting || !xr || xr.active || !xr.isAvailable(pc.XRTYPE_VR)) return;
+        this.xrStarting = true;
+        this.pauseXR();
+        try {
+            this.camera.startXr(pc.XRTYPE_VR, pc.XRSPACE_LOCALFLOOR, {
+                callback: error => this.onXRRequest(error)
+            });
+        } catch (error) {
+            this.onXRRequest(error);
+        }
+    }
+
+    private onXRRequest(error: unknown) {
+        if (error) {
+            this.onXREnd();
+            console.error('WebXR Immersive VR failed to start:', error);
+        }
+    }
+
+    private onXRStart() {
+        this.xrStarting = false;
+        this.inVR = true;
+        this.shotCooldown = 0;
+        this.pauseXR();
+    }
+
+    private pauseXR() {
+        this.poseReady = false;
+        GameState.isPaused = true;
+        if (this.rainbowRay) this.rainbowRay.enabled = false;
+    }
+
+    private onXRUpdate() {
+        if (this.inVR && !this.poseReady && this.app.xr?.visibilityState === 'visible') {
+            this.poseReady = true;
+            GameState.isPaused = false;
+        }
+    }
+
+    private onXREnd() {
+        this.inVR = false;
+        this.xrStarting = false;
+        this.shotCooldown = 0;
+        this.pauseXR();
     }
 
     endXR() {
-        this.camera.endXr();
+        if (!this.inVR) return;
         this.inVR = false;
-        GameState.isPaused = true;
+        this.pauseXR();
+        if (this.app.xr?.active) this.camera.endXr();
     }
 
     private shoot() {
-        const origin = this.horn.getPosition();
+        if (
+            !this.enabled ||
+            !this.entity.enabled ||
+            !this.inVR ||
+            GameState.isPaused ||
+            !this.poseReady ||
+            this.shotCooldown > 0 ||
+            !this.app.xr?.active ||
+            this.app.xr.visibilityState !== 'visible'
+        )
+            return;
+        this.shotCooldown = 0.4;
+        const origin = this.cameraEntity.getPosition();
         const direction = this.cameraEntity.forward;
+        const aim = this.findFruitHit(origin, direction);
+        const endpoint = direction
+            .clone()
+            .mulScalar(aim.target ? aim.distance : 20)
+            .add(origin);
+        const tip = this.horn.getWorldTransform().transformPoint(new pc.Vec3(0, 0.5, 0));
+        const beamDirection = endpoint.clone().sub(tip);
+        const beamLength = beamDirection.length();
+        beamDirection.normalize();
+        const hit = this.findFruitHit(tip, beamDirection, beamLength);
+        if (hit.target) {
+            endpoint.copy(beamDirection).mulScalar(hit.distance).add(tip);
+        }
+        this.shootRay(tip, endpoint);
+        const target = hit.target || aim.target;
+        if (target) {
+            this.fruitController.hitFruit(target);
+        }
+    }
 
-        this.shootRay(origin, direction);
-
-        const rayOrigin = origin.clone();
-        const rayDir = direction.clone().normalize();
-
-        let bestHit: {entity: pc.Entity; distance: number} | null = null;
+    private findFruitHit(origin: pc.Vec3, direction: pc.Vec3, range = Infinity) {
+        let closest = range;
+        let target: pc.Entity | undefined;
 
         for (const fruit of this.fruitController.getActiveFruits()) {
-            const pos = fruit.entity.getPosition();
-            const toFruit = pos.clone().sub(rayOrigin);
-            const t = toFruit.dot(rayDir);
-
-            if (t < 0) continue;
-
-            const closestPoint = rayOrigin.clone().add(rayDir.clone().scale(t));
-            const diff = pos.clone().sub(closestPoint);
-            const distSq = diff.lengthSq();
-
-            if (distSq <= fruit.radius * fruit.radius) {
-                const dist = closestPoint.distance(pos);
-                if (!bestHit || dist < bestHit.distance) {
-                    bestHit = {entity: fruit.entity, distance: dist};
-                }
+            const offset = fruit.entity.getPosition().clone().sub(origin);
+            const along = offset.dot(direction);
+            const discriminant = along * along - offset.lengthSq() + fruit.radius * fruit.radius;
+            if (discriminant < 0) {
+                continue;
+            }
+            const root = Math.sqrt(discriminant);
+            const entry = along - root;
+            const distance = entry >= 0 ? entry : along + root;
+            if (distance >= 0 && distance < closest) {
+                closest = distance;
+                target = fruit.entity;
             }
         }
 
-        if (bestHit) {
-            this.fruitController.hitFruit(bestHit.entity);
-            // score++, particle effect, sound...
-        }
+        return {target, distance: closest};
     }
 
     private onTreeHealed(tree: Tree) {
@@ -217,9 +283,8 @@ export class Game extends pc.Script {
     }
 
     declare private rainbowRay?: pc.Entity;
-    private rayRoutineId = -1;
 
-    private shootRay(origin: pc.Vec3, direction: pc.Vec3) {
+    private shootRay(origin: pc.Vec3, endpoint: pc.Vec3) {
         if (!this.rainbowRay) {
             this.rainbowRay = new pc.Entity('ray');
             this.rainbowRay.addComponent('render', {
@@ -232,22 +297,13 @@ export class Game extends pc.Script {
             material.emissive = new pc.Color(1, 1, 1);
             material.update();
 
-            this.cameraEntity.addChild(this.rainbowRay);
-
-            this.rainbowRay.setLocalScale(0.02, 0.02, 10);
+            this.app.root.addChild(this.rainbowRay);
         }
-        this.app.root.addChild(this.rainbowRay);
 
         this.rainbowRay.enabled = true;
-        this.rainbowRay.setPosition(origin);
-        this.rainbowRay.lookAt(origin.clone().add(direction));
-
-        this.coroutineManager.stopCoroutine(this.rayRoutineId);
-        this.rayRoutineId = this.coroutineManager.addCoroutine(new Coroutine(this.rayRoutine()));
-    }
-    private *rayRoutine() {
-        yield* waitForCondition(() => !GameState.isPaused);
-        yield* waitForSeconds(0.2);
-        this.rainbowRay!.enabled = false;
+        this.rainbowRay.setPosition(origin.clone().add(endpoint).mulScalar(0.5));
+        this.rainbowRay.lookAt(endpoint);
+        this.rainbowRay.setLocalScale(0.02, 0.02, origin.distance(endpoint));
+        this.rayTime = 0.2;
     }
 }

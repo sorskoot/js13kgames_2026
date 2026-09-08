@@ -26,6 +26,7 @@ export class FruitController extends pc.Script {
     static override scriptName = 'fruit-controller';
 
     private coroutineManager?: CoroutineManager;
+    private effectManager = new CoroutineManager();
 
     private trees: Tree[] = [];
     private settings: FruitSpawnSettings[] = [];
@@ -38,9 +39,10 @@ export class FruitController extends pc.Script {
     }
 
     update(dt: number) {
-        if (this.coroutineManager) {
+        if (this.coroutineManager && !GameState.isPaused) {
             this.coroutineManager.update(dt);
         }
+        this.effectManager.update(dt);
     }
 
     registerTree(tree: Tree, settings: FruitSpawnSettings) {
@@ -142,7 +144,7 @@ export class FruitController extends pc.Script {
             texture?.destroy();
         };
         this.once('destroy', cleanup);
-        this.coroutineManager!.addCoroutine(
+        this.effectManager.addCoroutine(
             new Coroutine(
                 (function* () {
                     yield* waitForSeconds(2);
@@ -181,7 +183,8 @@ export class FruitController extends pc.Script {
             yield* waitForCondition(() => this.activeFruits.length > 0);
             yield* waitForSeconds(0.1);
 
-            for (const fruitData of this.activeFruits) {
+            for (let index = this.activeFruits.length - 1; index >= 0; index--) {
+                const fruitData = this.activeFruits[index];
                 fruitData.life -= fruitData.decayRate;
                 if (fruitData.life <= 0) {
                     this.rotFruit(fruitData.entity);
