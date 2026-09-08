@@ -4,6 +4,7 @@ import {CoroutineManager} from '@/coroutines/CoroutineManager.js';
 import {Coroutine} from '@/coroutines/Coroutine.js';
 import {waitForCondition, waitForSeconds} from '@/coroutines/YieldInstructions.js';
 import {GameState} from './GameState.js';
+import {p13kFx} from '@/lib/particles/particles.js';
 
 export interface FruitSpawnSettings {
     spawnRate: number;
@@ -106,8 +107,10 @@ export class FruitController extends pc.Script {
 
     hitFruit(fruit: pc.Entity) {
         const index = this.activeFruits.findIndex(f => f.entity === fruit);
-        const treeIndex = this.activeFruits[index]?.treeIndex;
-        if (treeIndex !== undefined && !this.trees[treeIndex].isHealed) {
+        const fruitData = this.activeFruits[index];
+        const treeIndex = fruitData?.treeIndex;
+        if (fruitData && treeIndex !== undefined && !this.trees[treeIndex].isHealed) {
+            this.playHitEffect(fruitData);
             if (this.trees[treeIndex].hitFruit()) {
                 // remove all fruits associated with this tree
                 for (const fruitData of this.activeFruits.filter(f => f.treeIndex === treeIndex)) {
@@ -116,6 +119,37 @@ export class FruitController extends pc.Script {
             }
         }
         this.removeFruit(fruit);
+    }
+    private FX_SYS =
+        'P13K1|K32.3|0.34.21.100.0.0.100|0.97.1.83.0.1.8.8.8.0.0.0.0.53.0.10000.216.5.-36.40.32.35.10.46.11.0.0.255.255.255.255.255.255.255.255.255.100.0.0.0.48.0.0.0.3.0.100.25.90.100.0.3.0.0.20.100.100.25';
+    private playHitEffect(fruit: ActiveFruit) {
+        const [effect] = p13kFx(this.app, this.FX_SYS);
+        effect.setPosition(fruit.entity.getPosition());
+        const particles = effect.particlesystem!;
+        const color = fruit.color;
+        particles.colorGraph = new pc.CurveSet([
+            [0, color.r, 1, color.r],
+            [0, color.g, 1, color.g],
+            [0, color.b, 1, color.b]
+        ]);
+        particles.reset();
+        particles.play();
+
+        const texture = particles.colorMap;
+        const cleanup = () => {
+            this.off('destroy', cleanup);
+            effect.destroy();
+            texture?.destroy();
+        };
+        this.once('destroy', cleanup);
+        this.coroutineManager!.addCoroutine(
+            new Coroutine(
+                (function* () {
+                    yield* waitForSeconds(2);
+                    cleanup();
+                })()
+            )
+        );
     }
 
     rotFruit(fruit: pc.Entity) {
