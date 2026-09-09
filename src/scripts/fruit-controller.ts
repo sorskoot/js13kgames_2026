@@ -4,7 +4,7 @@ import {CoroutineManager} from '@/coroutines/CoroutineManager.js';
 import {Coroutine} from '@/coroutines/Coroutine.js';
 import {waitForCondition, waitForSeconds} from '@/coroutines/YieldInstructions.js';
 import {GameState} from './GameState.js';
-import {p13kFx} from '@/lib/particles/particles.js';
+import {p13kFx, p13kPreload} from '@/lib/particles/particles.js';
 
 export interface FruitSpawnSettings {
     spawnRate: number;
@@ -124,6 +124,10 @@ export class FruitController extends pc.Script {
     }
     private FX_SYS =
         'P13K1|K32.3|0.34.21.100.0.0.100|0.97.1.83.0.1.8.8.8.0.0.0.0.53.0.10000.216.5.-36.40.32.35.10.46.11.0.0.255.255.255.255.255.255.255.255.255.100.0.0.0.48.0.0.0.3.0.100.25.90.100.0.3.0.0.20.100.100.25';
+    preloadHitEffect() {
+        p13kPreload(this.app, this.FX_SYS);
+    }
+
     private playHitEffect(fruit: ActiveFruit) {
         const [effect] = p13kFx(this.app, this.FX_SYS);
         effect.setPosition(fruit.entity.getPosition());
@@ -137,11 +141,9 @@ export class FruitController extends pc.Script {
         particles.reset();
         particles.play();
 
-        const texture = particles.colorMap;
         const cleanup = () => {
             this.off('destroy', cleanup);
             effect.destroy();
-            texture?.destroy();
         };
         this.once('destroy', cleanup);
         this.effectManager.addCoroutine(

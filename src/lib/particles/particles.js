@@ -30,7 +30,8 @@ function p13kDecode(s) {
 }
 /* p13k-fx v1 | tiny PlayCanvas-engine particle runtime | MIT | ~1.1kB min */
 import * as pc from 'playcanvas';
-export {p13kFx};
+export {p13kFx, p13kPreload};
+const p13kCache = new WeakMap();
 function p13kTx(s) {
     let p = s.split('|'),
         m = p[0].match(/K(\d+)\.(\d+)/),
@@ -193,6 +194,39 @@ function p13kTx(s) {
     return c;
 }
 function p13kFx(app, sys, parent) {
+    return p13kCompile(app, sys).emitters.map(template => {
+        const entity = template.clone();
+        (parent || app.root).addChild(entity);
+        entity.enabled = true;
+        return entity;
+    });
+}
+function p13kPreload(app, sys) {
+    p13kCompile(app, sys);
+}
+function p13kCompile(app, sys) {
+    let systems = p13kCache.get(app);
+    if (!systems) {
+        systems = new Map();
+        p13kCache.set(app, systems);
+        app.once('destroy', () => {
+            for (const cached of systems.values()) {
+                for (const emitter of cached.emitters) {
+                    emitter.destroy();
+                }
+                for (const texture of cached.textures) {
+                    texture.destroy();
+                }
+            }
+            systems.clear();
+            p13kCache.delete(app);
+        });
+    }
+    const key = sys;
+    const cached = systems.get(key);
+    if (cached) {
+        return cached;
+    }
     if (typeof sys === 'string') sys = p13kDecode(sys);
     let P = 0,
         NT = sys[P++],
@@ -296,7 +330,8 @@ function p13kFx(app, sys, parent) {
             sP = [];
         for (let z = 0; z < nS; z++) sP.push(e[q++] / 100, (e[q++] / 100) * (s0 + s1) * 0.5);
         let dp = Math.max(0.05, 1 - dg * 0.45),
-            en = new pc.Entity('p13k_' + i);
+            en = new pc.Entity('p13k_' + i, app);
+        en.enabled = false;
         en.addComponent('particlesystem', {
             numParticles: bu > 0 ? Math.min(bu, num) : num,
             rate: bu > 0 ? 0 : rate,
@@ -334,8 +369,9 @@ function p13kFx(app, sys, parent) {
             depthSoftening: 0
         });
         en.setLocalPosition(px, py, pz);
-        (parent || app.root).addChild(en);
         out.push(en);
     }
-    return out;
+    const compiled = {emitters: out, textures: TX};
+    systems.set(key, compiled);
+    return compiled;
 }

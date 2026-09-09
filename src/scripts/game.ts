@@ -4,6 +4,7 @@ import {Tree} from './tree.js';
 import {Controllers} from './controllers.js';
 import {FruitController} from './fruit-controller.js';
 import {GameState} from './GameState.js';
+import {p13kFx, p13kPreload} from '../lib/particles/particles.js';
 
 export class Game extends pc.Script {
     static override scriptName = 'game';
@@ -19,9 +20,21 @@ export class Game extends pc.Script {
     private poseReady = false;
     private shotCooldown = 0;
     private shownCooldown = -1;
-    private rayTime = 0;
+    private shotPool: pc.Entity[][] = [];
+    private nextShot = 0;
+    private shotEffects: {
+        origin: pc.Vec3;
+        endpoint: pc.Vec3;
+        emitters: pc.Entity[];
+        age: number;
+        travelTime: number;
+        lifetime: number;
+    }[] = [];
+    private shootParticles =
+        'P13K1|K64.7|1.32.55.50.0.0.100|0.0.70.0.0.1.35~K128.5|3.25.55.35.10.0.100|0.0.80.0.0.1.50|0.90.5500.70.30.1.12.6.12.0.100.0.0.-1.0.3300.150.30.180.60.90.300.117.12.35.4000.37.255.0.0.31.87.255.0.122.8.350.0.1.1.0.0.0.0.6.0.100.15.100.65.100.65.100.65.97.100.100.4.0.35.23.100.93.100.100.0~1.60.2200.110.50.0.25.25.25.0.100.0.0.1.0.5000.260.70.-450.20.400.700.82.5.35.18000.100.255.217.0.68.31.255.255.0.208.250.0.1.1.0.51.0.0.3.0.100.25.90.100.0.2.0.100.100.40';
 
     initialize() {
+        p13kPreload(this.app, this.shootParticles);
         this.app.scene.ambientLight = new pc.Color(0.4, 0.4, 0.4);
 
         this.cameraEntity = new pc.Entity('camera');
@@ -63,6 +76,7 @@ export class Game extends pc.Script {
         this.app.root.addChild(groundPlane);
 
         this.fruitController = addScript<FruitController>(this.app.root, 'fruit-controller');
+        this.fruitController.preloadHitEffect();
 
         const tree = new pc.Entity('tree');
         const treeScript = addScript<Tree>(tree, 'tree');
@@ -129,6 +143,19 @@ export class Game extends pc.Script {
         tree5.setPosition(-8, 0, 0);
         tree5.setEulerAngles(0, 90, 0);
 
+        const shotRoot = new pc.Entity('shots');
+        shotRoot.enabled = false;
+        this.app.root.addChild(shotRoot);
+        for (let index = 0; index < 5; index++) {
+            this.shotPool.push(this.createShotEmitters(shotRoot));
+        }
+        shotRoot.enabled = true;
+        for (const emitters of this.shotPool) {
+            for (const emitter of emitters) {
+                emitter.enabled = false;
+            }
+        }
+
         this.app.root.on('xr:onTrigger', this.shoot, this);
         this.app.root.on('tree:healed', this.onTreeHealed, this);
         const xr = this.app.xr;
@@ -144,16 +171,48 @@ export class Game extends pc.Script {
             xr?.off('visibility:change', this.pauseXR, this);
             xr?.off('update', this.onXRUpdate, this);
             this.onXREnd();
-            this.rainbowRay?.render?.material.destroy();
-            this.rainbowRay?.destroy();
+            shotRoot.destroy();
+            this.shotPool.length = 0;
         });
         this.fruitController.startSpawning();
     }
 
     update(dt: number) {
         if (!GameState.isPaused) this.shotCooldown = Math.max(0, this.shotCooldown - dt);
-        this.rayTime -= dt;
-        if (this.rayTime <= 0 && this.rainbowRay) this.rainbowRay.enabled = false;
+        for (let index = this.shotEffects.length - 1; index >= 0; index--) {
+            if (dt <= 0) {
+                continue;
+            }
+            const effect = this.shotEffects[index];
+            const travelStep = Math.min(dt, Math.max(0, effect.travelTime - effect.age));
+            const previous = effect.age / effect.travelTime;
+            effect.age += dt;
+            const progress = Math.min(1, effect.age / effect.travelTime);
+            for (const emitter of effect.emitters) {
+                const particles = emitter.particlesystem!;
+                const simulation = particles.emitter;
+                if (travelStep > 0) {
+                    emitter.setPosition(new pc.Vec3().lerp(effect.origin, effect.endpoint, (previous + progress) / 2));
+                    particles.emitterExtents = new pc.Vec3(
+                        particles.emitterExtents.x,
+                        particles.emitterExtents.y,
+                        effect.origin.distance(effect.endpoint) * (progress - previous)
+                    );
+                    simulation?.addTime(travelStep, false);
+                    if (progress === 1) {
+                        particles.stop();
+                        emitter.setPosition(effect.endpoint);
+                    }
+                }
+                if (dt > travelStep) {
+                    simulation?.addTime(dt - travelStep, false);
+                }
+                simulation?.finishFrame();
+            }
+            if (effect.age >= effect.travelTime + effect.lifetime) {
+                this.releaseShotEffect(index);
+            }
+        }
         if (this.shownCooldown !== this.shotCooldown) {
             this.shownCooldown = this.shotCooldown;
             const charge = 1 - this.shotCooldown / 0.4;
@@ -193,7 +252,9 @@ export class Game extends pc.Script {
     private pauseXR() {
         this.poseReady = false;
         GameState.isPaused = true;
-        if (this.rainbowRay) this.rainbowRay.enabled = false;
+        while (this.shotEffects.length) {
+            this.releaseShotEffect(this.shotEffects.length - 1);
+        }
     }
 
     private onXRUpdate() {
@@ -282,28 +343,94 @@ export class Game extends pc.Script {
         }
     }
 
-    declare private rainbowRay?: pc.Entity;
+    private createShotEmitters(parent: pc.Entity) {
+        const emitters = p13kFx(this.app, this.shootParticles, parent);
+        emitters.splice(1, 0, emitters[0].clone(), emitters[0].clone());
+        const colors = [
+            [1, 0.02, 0.12, 1, 0.8, 0.02],
+            [0.02, 1, 0.2, 0.02, 0.8, 1],
+            [0.12, 0.05, 1, 1, 0.02, 0.65],
+            [1, 0.9, 0.4, 0.7, 0.2, 1]
+        ];
+        for (let index = 0; index < emitters.length; index++) {
+            const emitter = emitters[index];
+            const sparkle = index === 3;
+            if (!emitter.parent) {
+                parent.addChild(emitter);
+            }
+            const particles = emitter.particlesystem!;
+            particles.autoPlay = false;
+            particles.preWarm = false;
+            particles.localSpace = false;
+            particles.loop = true;
+            particles.numParticles = sparkle ? 48 : 36;
+            particles.rate = particles.rate2 = 0.1 / particles.numParticles;
+            particles.stretch = 0;
+            particles.initialVelocity = 0;
+            particles.emitterShape = pc.EMITTERSHAPE_BOX;
+            particles.emitterExtents = new pc.Vec3(sparkle ? 0.4 : 0.12, sparkle ? 0.4 : 0.12, 0);
+            particles.velocityGraph = new pc.CurveSet([
+                [0, -0.04],
+                [0, 0.04],
+                [0, -0.04]
+            ]);
+            particles.velocityGraph2 = new pc.CurveSet([
+                [0, 0.04],
+                [0, 0.12],
+                [0, 0.04]
+            ]);
+            particles.radialSpeedGraph = new pc.Curve([0, sparkle ? 0.18 : 0.04]);
+            particles.blendType = sparkle ? pc.BLEND_ADDITIVE : pc.BLEND_NORMAL;
+            particles.intensity = sparkle ? 1.5 : 1;
+            particles.colorGraph = new pc.CurveSet(
+                colors[index].slice(0, 3).map((value, channel) => [0, value, 0.3, colors[index][channel + 3], 1, value])
+            );
+            particles.scaleGraph = new pc.Curve([0, sparkle ? 0.2 : 0.1, 1, 0.015]);
+            particles.scaleGraph2 = new pc.Curve([0, sparkle ? 0.1 : 0.045, 1, 0.005]);
+            particles.alphaGraph = new pc.Curve(
+                sparkle ? [0, 0, 0.08, 1, 0.25, 0.2, 0.4, 1, 0.6, 0.3, 0.75, 0.8, 1, 0] : [0, 1, 0.5, 0.9, 1, 0]
+            );
+            particles.pause();
+        }
+        return emitters;
+    }
 
     private shootRay(origin: pc.Vec3, endpoint: pc.Vec3) {
-        if (!this.rainbowRay) {
-            this.rainbowRay = new pc.Entity('ray');
-            this.rainbowRay.addComponent('render', {
-                type: 'box',
-                material: new pc.StandardMaterial()
-            });
-
-            const material = this.rainbowRay.render!.material as pc.StandardMaterial;
-            material.diffuse = new pc.Color(1, 1, 1);
-            material.emissive = new pc.Color(1, 1, 1);
-            material.update();
-
-            this.app.root.addChild(this.rainbowRay);
+        const distance = origin.distance(endpoint);
+        endpoint = new pc.Vec3().lerp(origin, endpoint, Math.min(1, 10 / distance));
+        const emitters = this.shotPool[this.nextShot];
+        this.nextShot = (this.nextShot + 1) % this.shotPool.length;
+        const active = this.shotEffects.findIndex(effect => effect.emitters === emitters);
+        if (active >= 0) {
+            this.releaseShotEffect(active);
         }
+        let lifetime = 0;
+        for (const emitter of emitters) {
+            emitter.setPosition(origin);
+            emitter.lookAt(endpoint);
+            const particles = emitter.particlesystem!;
+            particles.emitterExtents.z = 0;
+            emitter.enabled = true;
+            particles.reset();
+            particles.play();
+            particles.pause();
+            lifetime = Math.max(lifetime, particles.lifetime);
+        }
+        this.shotEffects.push({
+            origin: origin.clone(),
+            endpoint,
+            emitters,
+            age: 0,
+            travelTime: Math.max(0.001, Math.min(distance, 10) / 100),
+            lifetime
+        });
+    }
 
-        this.rainbowRay.enabled = true;
-        this.rainbowRay.setPosition(origin.clone().add(endpoint).mulScalar(0.5));
-        this.rainbowRay.lookAt(endpoint);
-        this.rainbowRay.setLocalScale(0.02, 0.02, origin.distance(endpoint));
-        this.rayTime = 0.2;
+    private releaseShotEffect(index: number) {
+        const [effect] = this.shotEffects.splice(index, 1);
+        for (const emitter of effect.emitters) {
+            emitter.particlesystem!.pause();
+            emitter.enabled = false;
+        }
     }
 }
