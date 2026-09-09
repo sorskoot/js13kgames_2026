@@ -19,7 +19,7 @@ jobs:
               with:
                   submodules: true
                   lfs: false
-              name: npm install, build, and test
+            - name: npm install, build, and test
               run: |
                   # Build and test the project, then
                   # deploy to Azure Web App.
