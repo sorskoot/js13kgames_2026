@@ -111,7 +111,8 @@ export class FruitController extends pc.Script {
         const index = this.activeFruits.findIndex(f => f.entity === fruit);
         const fruitData = this.activeFruits[index];
         const treeIndex = fruitData?.treeIndex;
-        if (fruitData && treeIndex !== undefined && !this.trees[treeIndex].isHealed) {
+        const hit = !!fruitData && treeIndex !== undefined && !this.trees[treeIndex].isHealed;
+        if (hit) {
             this.playFruitEffect(fruitData);
             if (this.trees[treeIndex].hitFruit()) {
                 // remove all fruits associated with this tree
@@ -121,6 +122,7 @@ export class FruitController extends pc.Script {
             }
         }
         this.removeFruit(fruit);
+        return hit;
     }
     private FX_SYS =
         'P13K1|K32.3|0.34.21.100.0.0.100|0.97.1.83.0.1.8.8.8.0.0.0.0.53.0.10000.216.5.-36.40.32.35.10.46.11.0.0.255.255.255.255.255.255.255.255.255.100.0.0.0.48.0.0.0.3.0.100.25.90.100.0.3.0.0.20.100.100.25';

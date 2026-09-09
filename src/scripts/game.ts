@@ -4,7 +4,12 @@ import {Tree} from './tree.js';
 import {Controllers} from './controllers.js';
 import {FruitController} from './fruit-controller.js';
 import {GameState} from './GameState.js';
+import {SFX, Soundfx} from './Audio.js';
 import {p13kFx, p13kPreload} from '../lib/particles/particles.js';
+import {createTextPlane} from '../lib/text/TextLab.js';
+
+// prettier-ignore
+const TitleText = [1,'RAINBOW\nREBOOT',1024,512,1,172,113,1,-15,59,100,16674041,15557732,90,10,1639991,0,2757963,0,10,52,10315002,100,19,5586055,1513245];
 
 export class Game extends pc.Script {
     static override scriptName = 'game';
@@ -13,8 +18,10 @@ export class Game extends pc.Script {
 
     declare private cameraEntity: pc.Entity;
     declare private camera: pc.CameraComponent;
+    declare private sounds: Soundfx;
     declare private fruitController: FruitController;
     declare private horn: pc.Entity;
+    declare private title: ReturnType<typeof createTextPlane>;
     private trees: Tree[] = [];
     private xrStarting = false;
     private poseReady = false;
@@ -34,6 +41,7 @@ export class Game extends pc.Script {
         'P13K1|K64.7|1.32.55.50.0.0.100|0.0.70.0.0.1.35~K128.5|3.25.55.35.10.0.100|0.0.80.0.0.1.50|0.90.5500.70.30.1.12.6.12.0.100.0.0.-1.0.3300.150.30.180.60.90.300.117.12.35.4000.37.255.0.0.31.87.255.0.122.8.350.0.1.1.0.0.0.0.6.0.100.15.100.65.100.65.100.65.97.100.100.4.0.35.23.100.93.100.100.0~1.60.2200.110.50.0.25.25.25.0.100.0.0.1.0.5000.260.70.-450.20.400.700.82.5.35.18000.100.255.217.0.68.31.255.255.0.208.250.0.1.1.0.51.0.0.3.0.100.25.90.100.0.2.0.100.100.40';
 
     initialize() {
+        this.sounds = new Soundfx(this.app.soundManager);
         p13kPreload(this.app, this.shootParticles);
         this.app.scene.ambientLight = new pc.Color(0.4, 0.4, 0.4);
 
@@ -41,7 +49,19 @@ export class Game extends pc.Script {
         this.camera = this.cameraEntity.addComponent('camera', {
             clearColor: new pc.Color(0.2, 1.0, 1.0)
         }) as pc.CameraComponent;
+        this.cameraEntity.addComponent('audiolistener');
         this.app.root.addChild(this.cameraEntity);
+        this.cameraEntity.setLocalPosition(0, 1.6, 0);
+        this.title = createTextPlane(pc, this.app, TitleText, this.cameraEntity, 2, false);
+        this.cameraEntity.addChild(this.title.entity);
+        const fitTitle = (width = this.app.graphicsDevice.width, height = this.app.graphicsDevice.height) => {
+            const visibleHeight = 6 * Math.tan((this.camera.fov * pc.math.DEG_TO_RAD) / 2);
+            const scale = Math.min(3, visibleHeight * Math.min((0.9 * width) / height, 1.2)) / 2;
+            this.title.entity.setLocalScale(scale, scale, scale);
+            this.title.entity.setLocalPosition(0, visibleHeight * 0.12, -3);
+        };
+        fitTitle();
+        this.app.graphicsDevice.on('resizecanvas', fitTitle);
         addScript<Controllers>(this.app.root, 'controllers');
 
         const light = new pc.Entity('light');
@@ -171,6 +191,8 @@ export class Game extends pc.Script {
             xr?.off('visibility:change', this.pauseXR, this);
             xr?.off('update', this.onXRUpdate, this);
             this.onXREnd();
+            this.app.graphicsDevice.off('resizecanvas', fitTitle);
+            this.title.destroy();
             shotRoot.destroy();
             this.shotPool.length = 0;
         });
@@ -227,6 +249,7 @@ export class Game extends pc.Script {
         this.xrStarting = true;
         this.pauseXR();
         try {
+            this.sounds.init();
             this.camera.startXr(pc.XRTYPE_VR, pc.XRSPACE_LOCALFLOOR, {
                 callback: error => this.onXRRequest(error)
             });
@@ -245,6 +268,7 @@ export class Game extends pc.Script {
     private onXRStart() {
         this.xrStarting = false;
         this.inVR = true;
+        this.title.entity.enabled = false;
         this.shotCooldown = 0;
         this.pauseXR();
     }
@@ -252,6 +276,7 @@ export class Game extends pc.Script {
     private pauseXR() {
         this.poseReady = false;
         GameState.isPaused = true;
+        this.sounds.stop();
         while (this.shotEffects.length) {
             this.releaseShotEffect(this.shotEffects.length - 1);
         }
@@ -267,6 +292,9 @@ export class Game extends pc.Script {
     private onXREnd() {
         this.inVR = false;
         this.xrStarting = false;
+        this.cameraEntity.setLocalPosition(0, 1.6, 0);
+        this.cameraEntity.setLocalEulerAngles(0, 0, 0);
+        this.title.entity.enabled = true;
         this.shotCooldown = 0;
         this.pauseXR();
     }
@@ -307,9 +335,13 @@ export class Game extends pc.Script {
             endpoint.copy(beamDirection).mulScalar(hit.distance).add(tip);
         }
         this.shootRay(tip, endpoint);
+        this.sounds.play(SFX.SHOOT);
         const target = hit.target || aim.target;
         if (target) {
-            this.fruitController.hitFruit(target);
+            const position = target.getPosition().clone();
+            if (this.fruitController.hitFruit(target)) {
+                this.sounds.play(SFX.HIT_FRUIT, position);
+            }
         }
     }
 

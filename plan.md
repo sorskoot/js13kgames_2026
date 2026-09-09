@@ -158,7 +158,7 @@ Each milestone should be independently playable and measured. Extend the current
 
 ### M2. Make the Loop Enjoyable
 
-- [ ] Give active/urgent fruit a readable non-color cue and consistent gray-to-reward language.
+- [ ] Give urgent fruit a readable non-color cue while preserving tree-specific fruit colors and gradual browning.
 - [ ] Add wave pacing and a completion breather; preserve feasible reaction time during head turns.
 - [ ] Add the minimum shot/hit/rot/completion sound set and mute.
 - [ ] A/B test the single rainbow-chain rule; keep it only if it improves target choice.

@@ -22,7 +22,7 @@
         }
     },
     "exclude": ["node_modules"],
-    "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/.vert", "src/**/.frag"],
+    "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/.vert", "src/**/.frag", "src/lib/text/text.js"],
     "typedocOptions": {
         "entryPoints": ["./src/index.ts"],
         "out": "docs"

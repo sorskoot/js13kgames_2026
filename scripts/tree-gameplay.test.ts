@@ -41,10 +41,12 @@ function createApp() {
     const app = new pc.AppBase(canvas);
     const options = new pc.AppOptions();
     options.graphicsDevice = new pc.NullGraphicsDevice(canvas);
+    options.soundManager = new pc.SoundManager();
     options.componentSystems = [
         pc.RenderComponentSystem,
         pc.ScriptComponentSystem,
         pc.CameraComponentSystem,
+        pc.AudioListenerComponentSystem,
         pc.LightComponentSystem,
         pc.ParticleSystemComponentSystem
     ];
@@ -79,7 +81,10 @@ function createXRGame(context: TestContext) {
                     createImageData: (width: number, height: number) => ({
                         data: new Uint8ClampedArray(width * height * 4)
                     }),
-                    putImageData() {}
+                    putImageData() {},
+                    measureText: (text: string) => ({width: text.length * 100}),
+                    fillText() {},
+                    strokeText() {}
                 })
             })
         }
@@ -166,6 +171,7 @@ test('XR requests, focus changes, end events, and re-entry preserve pause state'
     const fixture = createXRGame(context);
     const {game, xr, requests} = fixture;
     context.mock.method(console, 'error', () => {});
+    assert.equal(game.title.entity.enabled, true);
     xr.isAvailable = () => false;
     game.startXR();
     assert.equal(requests.length, 0);
@@ -175,10 +181,12 @@ test('XR requests, focus changes, end events, and re-entry preserve pause state'
     assert.equal(requests.length, 1);
     requests[0](new Error('Session rejected'));
     assert.equal(game.inVR, false);
+    assert.equal(game.title.entity.enabled, true);
     assert.equal(GameState.isPaused, true);
     fixture.start();
     assert.equal(requests.length, 2);
     assert.equal(game.inVR, true);
+    assert.equal(game.title.entity.enabled, false);
     assert.equal(GameState.isPaused, true);
     game.shoot();
     assert.equal(game.shotEffects.length, 0);
@@ -191,6 +199,7 @@ test('XR requests, focus changes, end events, and re-entry preserve pause state'
     xr.visibilityState = 'visible-blurred';
     xr.fire('visibility:change');
     assert.equal(GameState.isPaused, true);
+    assert.equal(game.title.entity.enabled, false);
     assert.equal(game.shotEffects.length, 0);
     fixture.track();
     assert.equal(GameState.isPaused, true);
@@ -205,11 +214,13 @@ test('XR requests, focus changes, end events, and re-entry preserve pause state'
     assert.equal(GameState.isPaused, true);
     xr.fire('end');
     assert.equal(fixture.endRequests(), 1);
+    assert.equal(game.title.entity.enabled, true);
     xr.active = false;
     fixture.start();
     fixture.track();
     assert.equal(requests.length, 3);
     assert.equal(game.inVR, true);
+    assert.equal(game.title.entity.enabled, false);
     assert.equal(GameState.isPaused, false);
     xr.fire('end');
     assert.equal(fixture.endRequests(), 1);
@@ -218,6 +229,53 @@ test('XR requests, focus changes, end events, and re-entry preserve pause state'
     game.fire('destroy');
     for (const event of ['start', 'end', 'update', 'visibility:change']) assert.equal(xr.hasEvent(event), false);
     assert.equal(fixture.app.root.hasEvent('xr:onTrigger'), false);
+});
+
+test('preview camera is eye-height outside XR without offsetting tracked headset poses', context => {
+    const fixture = createXRGame(context);
+    const {game, xr} = fixture;
+    assert.deepEqual(game.cameraEntity.getLocalPosition().toArray(), [0, 1.6, 0]);
+    const position = new pc.Vec3(1, 2, -1);
+    const rotation = new pc.Quat().setFromEulerAngles(20, 70, 0);
+    fixture.start();
+    fixture.track(position, rotation);
+    assert.ok(game.cameraEntity.getLocalPosition().equals(position));
+    assert.ok(game.cameraEntity.getLocalRotation().equals(rotation));
+    xr.fire('end');
+    assert.deepEqual(game.cameraEntity.getLocalPosition().toArray(), [0, 1.6, 0]);
+    assert.ok(game.cameraEntity.getLocalRotation().equals(pc.Quat.IDENTITY));
+});
+
+test('title fits wide and portrait viewports and releases its resources on destruction', context => {
+    const {app, game} = createXRGame(context);
+    const title = game.title;
+    assert.ok(title.entity.parent === game.cameraEntity);
+    assert.equal(title.billboard, false);
+    assert.equal(title.canvas.width, 1024);
+    assert.equal(title.canvas.height, 512);
+    for (const [width, height] of [
+        [1280, 800],
+        [390, 844],
+        [844, 390]
+    ]) {
+        app.graphicsDevice.fire('resizecanvas', width, height);
+        const visibleHeight = 6 * Math.tan((game.camera.fov * pc.math.DEG_TO_RAD) / 2);
+        const scale = title.entity.getLocalScale().x;
+        const position = title.entity.getLocalPosition();
+        assert.ok(Number.isFinite(scale) && scale > 0);
+        assert.ok(2 * scale <= (visibleHeight * width) / height);
+        assert.ok(Math.abs(position.y) + scale / 2 < visibleHeight / 2);
+        assert.equal(position.z, -3);
+    }
+    const destroyMaterial = context.mock.method(title.material, 'destroy');
+    const destroyTexture = context.mock.method(title.texture, 'destroy');
+    game.fire('destroy');
+    assert.equal(destroyMaterial.mock.callCount(), 1);
+    assert.equal(destroyTexture.mock.callCount(), 1);
+    assert.equal(title.entity.parent, null);
+    const scale = title.entity.getLocalScale().x;
+    app.graphicsDevice.fire('resizecanvas', 300, 900);
+    assert.equal(title.entity.getLocalScale().x, scale);
 });
 
 test('XR entry UI follows availability and end events without requesting another end', context => {

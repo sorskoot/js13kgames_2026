@@ -55,3 +55,14 @@ applyTo: 'src/**,lib/**,scripts/**,index.html,package.json,tsconfig.json'
 - Validate XR-sensitive changes on the intended headset. Report missing device validation explicitly; desktop previews are not substitutes.
 - For instruction-only or documentation-only changes, check the changed files without rebuilding the game.
 - Keep edits scoped to the request. Ask before changing hard constraints, gameplay requirements, or build configuration.
+- No need to create and run tests all the time. Only create tests when requested. It's a Game Jam.
+
+## Extra
+
+- The dev server also starts port forwarding to Quest. You can get screenshots from there using
+
+```
+adb devices
+adb -s {add serial} shell screencap -p /sdcard/quest-screenshot.png
+adb -s {add serial} pull /sdcard/quest-screenshot.png C:/dev/js13kgames_2026/quest-screenshot.png
+```
