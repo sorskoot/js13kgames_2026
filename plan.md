@@ -159,7 +159,7 @@ Each milestone should be independently playable and measured. Extend the current
 ### M2. Make the Loop Enjoyable
 
 - [ ] Give urgent fruit a readable non-color cue while preserving tree-specific fruit colors and gradual browning.
-- [ ] Add wave pacing and a completion breather; preserve feasible reaction time during head turns.
+- [ ] Tune implemented wave pacing and completion breather on-headset; current prototype ramps active trees and per-tree fruit capacity from 1 tree/2 fruit toward 3 trees/5 fruit, shortens lifetime from 16s to 9s across waves 1-5, drains live fruit before moving focus, and shows a brief TextLab cue.
 - [ ] Add the minimum shot/hit/rot/completion sound set and mute.
 - [ ] A/B test the single rainbow-chain rule; keep it only if it improves target choice.
 - [ ] Record run duration, hits, misses, expiries, and where players stall during development; do not ship analytics infrastructure.

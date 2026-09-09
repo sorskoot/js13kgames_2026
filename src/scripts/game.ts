@@ -22,6 +22,8 @@ export class Game extends pc.Script {
     declare private fruitController: FruitController;
     declare private horn: pc.Entity;
     declare private title: ReturnType<typeof createTextPlane>;
+    declare private waveTitle: ReturnType<typeof createTextPlane>;
+    private waveText = [1, 'WAVE 1', 1024, 128, 4, 80, 17, 1, 0, 100, 100, 0xffffff, 0, 0, 4, 0x19333f];
     private trees: Tree[] = [];
     private xrStarting = false;
     private poseReady = false;
@@ -62,6 +64,10 @@ export class Game extends pc.Script {
         };
         fitTitle();
         this.app.graphicsDevice.on('resizecanvas', fitTitle);
+        this.waveTitle = createTextPlane(pc, this.app, this.waveText, this.cameraEntity, 2, false);
+        this.cameraEntity.addChild(this.waveTitle.entity);
+        this.waveTitle.entity.setLocalPosition(0, -0.45, -3);
+        this.waveTitle.entity.enabled = false;
         addScript<Controllers>(this.app.root, 'controllers');
 
         const light = new pc.Entity('light');
@@ -193,6 +199,7 @@ export class Game extends pc.Script {
             this.onXREnd();
             this.app.graphicsDevice.off('resizecanvas', fitTitle);
             this.title.destroy();
+            this.waveTitle.destroy();
             shotRoot.destroy();
             this.shotPool.length = 0;
         });
@@ -200,6 +207,12 @@ export class Game extends pc.Script {
     }
 
     update(dt: number) {
+        const message = this.fruitController.waveMessage;
+        this.waveTitle.entity.enabled = this.inVR && !GameState.isPaused && !!message;
+        if (message && message !== this.waveText[1]) {
+            this.waveText[1] = message;
+            this.waveTitle.update(this.waveText);
+        }
         if (!GameState.isPaused) this.shotCooldown = Math.max(0, this.shotCooldown - dt);
         for (let index = this.shotEffects.length - 1; index >= 0; index--) {
             if (dt <= 0) {
@@ -276,6 +289,7 @@ export class Game extends pc.Script {
     private pauseXR() {
         this.poseReady = false;
         GameState.isPaused = true;
+        this.waveTitle.entity.enabled = false;
         this.sounds.stop();
         while (this.shotEffects.length) {
             this.releaseShotEffect(this.shotEffects.length - 1);

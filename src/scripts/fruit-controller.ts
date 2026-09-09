@@ -22,6 +22,14 @@ interface ActiveFruit {
     color: pc.Color;
 }
 
+const WAVES = [
+    [18, 1, 3, 16, 2],
+    [22, 2, 2.6, 14, 2],
+    [24, 2, 2.2, 12, 3],
+    [24, 3, 1.8, 10, 4],
+    [26, 3, 1.5, 9, 5]
+];
+
 export class FruitController extends pc.Script {
     static override scriptName = 'fruit-controller';
 
@@ -32,15 +40,36 @@ export class FruitController extends pc.Script {
     private settings: FruitSpawnSettings[] = [];
 
     private activeFruits: Array<ActiveFruit> = [];
+    public waveMessage = '';
+    private messageTime = 0;
+    private spawning = false;
+    private wave = 0;
+    private waveTime = 0;
+    private spawnTime = 0;
+    private breather = 0;
+    private waveTrees: number[] = [];
+    private focusAngle = 0;
+    private direction = 1;
+    private waveSettings = WAVES[0];
 
     initialize() {
         this.coroutineManager = new CoroutineManager();
         this.coroutineManager.addCoroutine(new Coroutine(this.updateFruits()));
+        const root = this.app.root;
+        root.on('tree:healed', this.onTreeHealed, this);
+        this.once('destroy', () => root.off('tree:healed', this.onTreeHealed, this));
     }
 
     update(dt: number) {
         if (this.coroutineManager && !GameState.isPaused) {
+            this.messageTime = Math.max(0, this.messageTime - dt);
+            if (!this.messageTime) {
+                this.waveMessage = '';
+            }
             this.coroutineManager.update(dt);
+            if (this.spawning) {
+                this.updateWaves(dt);
+            }
         }
         this.effectManager.update(dt);
     }
@@ -51,32 +80,86 @@ export class FruitController extends pc.Script {
     }
 
     startSpawning() {
-        if (this.coroutineManager) {
-            for (let i = 0; i < this.trees.length; i++) {
-                const spawnCoroutine = new Coroutine(this.spawnRoutine(i));
-                this.coroutineManager.addCoroutine(spawnCoroutine);
+        this.spawning = true;
+    }
+
+    private onTreeHealed(tree: Tree) {
+        if (!this.spawning || !this.trees.includes(tree)) {
+            return;
+        }
+        this.waveTime = 0;
+        this.breather = 4;
+        this.waveMessage = 'TREE RESTORED';
+        this.messageTime = 4;
+    }
+
+    private updateWaves(dt: number) {
+        this.breather = Math.max(0, this.breather - dt);
+        if (this.waveTime <= 0) {
+            if (!this.breather && (!this.wave || !this.activeFruits.length)) {
+                this.beginWave();
+            }
+            return;
+        }
+        this.waveTime = Math.max(0, this.waveTime - dt);
+        this.spawnTime -= dt;
+        if (!this.waveTime || this.spawnTime > 0) {
+            return;
+        }
+        for (const treeIndex of this.waveTrees) {
+            if (this.shouldSpawn(treeIndex, this.waveSettings[4])) {
+                this.spawnFruit(treeIndex, this.waveSettings[3]);
             }
         }
+        this.spawnTime = this.waveSettings[2] * (0.8 + Math.random() * 0.4);
     }
 
-    private *spawnRoutine(treeIndex: number) {
-        while (true) {
-            yield* waitForCondition(() => !GameState.isPaused);
-            yield* waitForSeconds(this.settings[treeIndex].spawnRate + Math.random() * 2);
-            // TODO: calculate random position
-            yield* waitForCondition(() => this.shouldSpawn(treeIndex));
-            this.spawnFruit(treeIndex);
+    private beginWave() {
+        const remaining = this.trees
+            .map((tree, index) => {
+                const position = tree.entity.getPosition();
+                return {index, angle: Math.atan2(position.x, -position.z)};
+            })
+            .filter(tree => !this.trees[tree.index].isHealed)
+            .sort((left, right) => left.angle - right.angle);
+        if (!remaining.length) {
+            this.spawning = false;
+            return;
         }
+        let anchor = 0;
+        for (let index = 1; index < remaining.length; index++) {
+            if (
+                Math.abs(remaining[index].angle - this.focusAngle) < Math.abs(remaining[anchor].angle - this.focusAngle)
+            ) {
+                anchor = index;
+            }
+        }
+        if (!remaining[anchor + this.direction]) {
+            this.direction *= -1;
+        }
+        this.waveSettings = WAVES[Math.min(this.wave, WAVES.length - 1)];
+        this.waveTrees = [];
+        const count = Math.min(this.waveSettings[1], remaining.length);
+        const start = Math.min(Math.max(0, anchor - (this.direction < 0 ? count - 1 : 0)), remaining.length - count);
+        for (let offset = 0; offset < count; offset++) {
+            const tree = remaining[start + offset];
+            this.waveTrees.push(tree.index);
+            this.focusAngle = tree.angle;
+        }
+        this.waveTime = this.waveSettings[0];
+        this.spawnTime = 3;
+        this.waveMessage = `WAVE ${++this.wave}`;
+        this.messageTime = 3;
     }
 
-    private shouldSpawn(treeIndex: number): boolean {
+    private shouldSpawn(treeIndex: number, maxFruits = this.settings[treeIndex].maxFruits): boolean {
         if (this.trees[treeIndex].isHealed) {
             return false;
         }
-        return this.activeFruits.filter(f => f.treeIndex === treeIndex).length < this.settings[treeIndex].maxFruits;
+        return this.activeFruits.filter(f => f.treeIndex === treeIndex).length < maxFruits;
     }
 
-    spawnFruit(treeIndex: number) {
+    spawnFruit(treeIndex: number, lifetime = 10) {
         const position = this.settings[treeIndex].position;
         const fruit = new pc.Entity('fruit');
         const radius = 0.22;
@@ -86,7 +169,7 @@ export class FruitController extends pc.Script {
             radius,
             treeIndex,
             life: 1,
-            decayRate: 0.01,
+            decayRate: 0.1 / lifetime,
             color: this.settings[treeIndex].fruitColor
         });
 

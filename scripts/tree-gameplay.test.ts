@@ -880,8 +880,7 @@ test('controller input is detached on destruction and never duplicated on recrea
 });
 
 test('tree color restores with hits, fades with rot, and stays independent', context => {
-    const app = createApp();
-    context.after(() => app.destroy());
+    const {app} = createXRGame(context);
     const tree = createTree(app);
     const otherTree = createTree(app);
     const grayColors = meshColors(tree.entity);
