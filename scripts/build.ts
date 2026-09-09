@@ -3,6 +3,7 @@ import * as advzipPath from 'advzip-bin';
 import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import * as path from 'path';
 import {rollup} from 'rollup';
 import {minify} from 'terser';
@@ -17,6 +18,7 @@ type BuildMode = 'dev' | 'prod';
 const DEV_PORT = 5379;
 const DEVELOPMENT_PLAYCANVAS_URL = 'playcanvas.js';
 const PRODUCTION_PLAYCANVAS_URL = 'https://play.js13kgames.com/2026/webxr/playcanvas.js';
+const runFile = promisify(execFile);
 
 function parseMode() {
     const args = process.argv.slice(2);
@@ -96,7 +98,37 @@ async function optimizeProductionBundle() {
             throw new Error('Production build must generate a single JavaScript bundle');
         }
 
-        const result = await minify(chunk.code, {
+        if (chunk.imports.length || chunk.exports.length) {
+            throw new Error('Production bundle must not contain module imports or exports');
+        }
+
+        let code = chunk.code;
+        if (process.argv.includes('--closure')) {
+            fs.writeFileSync(bundlePath, code);
+            const {stdout, stderr} = await runFile(
+                process.execPath,
+                [
+                    path.resolve('node_modules/google-closure-compiler/cli.js'),
+                    '--js',
+                    bundlePath,
+                    '--compilation_level',
+                    'SIMPLE',
+                    '--language_in',
+                    'ECMASCRIPT_NEXT',
+                    '--language_out',
+                    'ECMASCRIPT_NEXT',
+                    '--emit_use_strict',
+                    'false'
+                ],
+                {maxBuffer: 10 * 1024 * 1024}
+            );
+            if (stderr) {
+                console.warn(stderr);
+            }
+            code = stdout;
+        }
+
+        const result = await minify(code, {
             module: true,
             ecma: 2022,
             compress: {passes: 2, unsafe: false},
@@ -106,7 +138,27 @@ async function optimizeProductionBundle() {
         if (!result.code) {
             throw new Error('Production minification generated an empty bundle');
         }
-        fs.writeFileSync(bundlePath, result.code);
+        code = result.code;
+        if (!process.argv.includes('--no-roadroller')) {
+            fs.writeFileSync(bundlePath, code);
+            const {stdout} = await runFile(process.execPath, [
+                path.resolve('node_modules/roadroller/cli.mjs'),
+                bundlePath, '-M', '32', '-O', '0',
+                '-S', '0,1,2,3,6,7,13,25,50,205,396,457',
+                '-Zmd', '10', '-Zdy', '0', '-Zab', '11',
+                '-Zpr', '18', '-Zlr', '930'
+            ], {maxBuffer: 10 * 1024 * 1024});
+            const packed = await minify(stdout, {
+                compress: false,
+                mangle: false,
+                format: {inline_script: true}
+            });
+            if (!packed.code) {
+                throw new Error('Roadroller generated an empty decoder');
+            }
+            code = packed.code;
+        }
+        fs.writeFileSync(bundlePath, code);
     } finally {
         await bundle.close();
     }
@@ -119,7 +171,7 @@ async function createZip() {
     return new Promise<number>((resolve, reject) => {
         execFile(
             advzipPath.default,
-            ['--add', '--shrink-insane', '--iter=50', outZip, 'index.html'],
+            ['--add', '--shrink-insane', '--iter=500', outZip, 'index.html'],
             {cwd: distDir},
             err => {
                 if (err) {
