@@ -503,8 +503,8 @@ test('startup preloads shots and fruit bursts without sharing mutable particle s
     const controller = new FruitController({app: fixture.app, entity: fixture.app.root});
     controller.initialize();
     const entity = fixture.fruit(new pc.Vec3(0, 2, -4));
-    controller.playHitEffect({entity, color: new pc.Color(1, 0, 0)});
-    controller.playHitEffect({entity, color: new pc.Color(0, 0, 1)});
+    controller.playFruitEffect({entity, color: new pc.Color(1, 0, 0)});
+    controller.playFruitEffect({entity, color: new pc.Color(0, 0, 1)});
     const bursts = (fixture.app.root.findComponents('particlesystem') as pc.ParticleSystemComponent[]).filter(
         component => component.entity.enabled
     );
@@ -744,16 +744,14 @@ test('pause freezes in-flight fruit timers while effect cleanup continues', cont
 });
 
 test('adjacent fruit expiries each apply their penalty and free their slot in the same tick', context => {
-    const app = createApp();
-    context.after(() => {
-        GameState.isPaused = true;
-        app.destroy();
-    });
+    const {app} = createXRGame(context);
+    const generated = context.mock.method(document, 'createElement');
     const tree = createTree(app);
     let penalties = 0;
     tree.rotFruit = () => penalties++;
     const controller = new FruitController({app, entity: app.root});
     controller.initialize();
+    context.after(() => controller.fire('destroy'));
     controller.registerTree(tree, {
         spawnRate: 3,
         maxFruits: 5,
@@ -762,14 +760,38 @@ test('adjacent fruit expiries each apply their penalty and free their slot in th
     });
     controller.spawnFruit(0);
     controller.spawnFruit(0);
+    const positions = controller
+        .getActiveFruits()
+        .map((fruit: {entity: pc.Entity}) => fruit.entity.getPosition().clone());
     for (const fruit of controller.getActiveFruits()) fruit.life = 0.01;
     GameState.isPaused = false;
     controller.update(0);
     controller.update(0.1);
     assert.equal(penalties, 2);
     assert.equal(controller.getActiveFruits().length, 0);
+    const bursts = (app.root.findComponents('particlesystem') as pc.ParticleSystemComponent[]).filter(
+        component => component.entity.enabled
+    );
+    assert.equal(bursts.length, 2);
+    for (const burst of bursts) {
+        assert.ok(positions.some((position: pc.Vec3) => position.equals(burst.entity.getPosition())));
+        assert.equal(burst.numParticles, 18);
+        assert.equal(burst.loop, false);
+        assert.equal(burst.rate, 0);
+        assert.equal(burst.lifetime, 0.7);
+        assert.ok(burst.colorGraph!.value(0)[0] > burst.colorGraph!.value(0)[1]);
+        assert.ok(burst.colorGraph!.value(0)[1] > burst.colorGraph!.value(0)[2]);
+        assert.equal(burst.velocityGraph!.type, pc.CURVE_LINEAR);
+        assert.equal(burst.velocityGraph!.value(0)[1], 0.3);
+        assert.equal(burst.velocityGraph!.value(1)[1], -2.5);
+    }
+    assert.ok(bursts[0].colorMap === bursts[1].colorMap);
+    assert.equal(generated.mock.callCount(), 0);
     controller.update(0.1);
     assert.equal(penalties, 2);
+    GameState.isPaused = true;
+    controller.update(2);
+    assert.ok(bursts.every(burst => !burst.entity.parent));
 });
 
 test('controller input is detached on destruction and never duplicated on recreation', context => {
