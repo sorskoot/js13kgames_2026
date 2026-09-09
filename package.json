@@ -32,6 +32,8 @@
         "advzip-bin": "^2.0.0",
         "esbuild": "^0.28.2",
         "playcanvas": "^2.21.4",
+        "rollup": "^4.63.1",
+        "terser": "^5.51.2",
         "typescript": "^7.0.2"
     }
 }

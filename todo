@@ -17,7 +17,7 @@ Must Have:
     ✓ Win state when all trees are healed @done(26-09-07 12:20)
     ✓ Start game when entering VR @done(26-09-08 14:23)
     ✓ Harden XR lifecycle and shooting (automated and browser checks) @done(26-09-08)
-    ☐ Validate native XR session transitions, aiming, and comfort on the target headset
+    ✓ Validate native XR session transitions, aiming, and comfort on the target headset @done(26-09-09 13:45)
 
 Should Have:
     ✓ Particles @done(26-09-08 14:23)

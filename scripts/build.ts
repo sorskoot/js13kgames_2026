@@ -4,6 +4,8 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import {execFile} from 'node:child_process';
 import * as path from 'path';
+import {rollup} from 'rollup';
+import {minify} from 'terser';
 import {
     metaQuestAdbPortForwardingPlugin,
     type MetaQuestAdbPortForwardingPlugin
@@ -80,25 +82,72 @@ function writeMetafile(result: esbuild.BuildResult) {
     fs.writeFileSync(path.join('dist', 'metafile.json'), JSON.stringify(result.metafile, null, 2));
 }
 
+async function optimizeProductionBundle() {
+    const bundlePath = path.join('dist', 'b.js');
+    const bundle = await rollup({
+        input: bundlePath,
+        external: ['node:worker_threads', 'worker_threads', 'playcanvas']
+    });
+
+    try {
+        const {output} = await bundle.generate({format: 'es', inlineDynamicImports: true});
+        const chunk = output[0];
+        if (output.length !== 1 || chunk.type !== 'chunk') {
+            throw new Error('Production build must generate a single JavaScript bundle');
+        }
+
+        const result = await minify(chunk.code, {
+            module: true,
+            ecma: 2022,
+            compress: {passes: 2, unsafe: false},
+            mangle: {properties: false},
+            format: {inline_script: true}
+        });
+        if (!result.code) {
+            throw new Error('Production minification generated an empty bundle');
+        }
+        fs.writeFileSync(bundlePath, result.code);
+    } finally {
+        await bundle.close();
+    }
+}
+
 async function createZip() {
-    // After minification, create a zip containing index.html and index.js
     const distDir = path.resolve('dist');
-    const htmlPath = path.join(distDir, 'index.html');
-    const jsPath = path.join(distDir, 'b.js');
     const outZip = path.join(distDir, 'Unicorn.zip');
 
     return new Promise<number>((resolve, reject) => {
-        execFile(advzipPath.default, ['--add', '--shrink-insane', '--iter=50', outZip, htmlPath, jsPath], err => {
-            if (err) {
-                return reject(err);
-            }
+        execFile(
+            advzipPath.default,
+            ['--add', '--shrink-insane', '--iter=50', outZip, 'index.html'],
+            {cwd: distDir},
+            err => {
+                if (err) {
+                    return reject(err);
+                }
 
-            const finalSize = fs.statSync(outZip).size;
-            printAndCheck(finalSize, outZip);
-            resolve(finalSize);
-        });
+                const finalSize = fs.statSync(outZip).size;
+                printAndCheck(finalSize, outZip);
+                resolve(finalSize);
+            }
+        );
     });
 }
+function inlineProductionBundle() {
+    const htmlPath = path.join('dist', 'index.html');
+    const html = fs.readFileSync(htmlPath, 'utf8');
+    const scriptTag = '<script type=module src=b.js></script>';
+    if (html.split(scriptTag).length !== 2) {
+        throw new Error('Production HTML must contain exactly one game bundle script');
+    }
+
+    const code = fs.readFileSync(path.join('dist', 'b.js'), 'utf8');
+    fs.writeFileSync(
+        htmlPath,
+        html.replace(scriptTag, () => `<script type=module>${code}</script>`)
+    );
+}
+
 // Progress formatting and limit check
 const SIZE_LIMIT = 13 * 1024; // 13 KB = 13312 bytes
 function formatProgress(size: number, limit: number, width = 10) {
@@ -183,6 +232,8 @@ async function build(mode: BuildMode) {
 
         return;
     } else {
+        await optimizeProductionBundle();
+        inlineProductionBundle();
         await createZip();
     }
     console.log('Production build complete.');

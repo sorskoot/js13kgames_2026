@@ -149,7 +149,7 @@ Each milestone should be independently playable and measured. Extend the current
 - [x] Harden XR entry, exit, and re-entry, pause/resume, and controller input lifecycle; remove desktop stubs. Automated verification complete.
 - [x] Implement tracked XR viewer-center aiming, nearest-hit ordering, horn-tip visual endpoints, a pause-aware 0.4-second cooldown, and horn recharge feedback.
 - [x] Fix pause boundaries and simultaneous expiry without blocking effect cleanup.
-- [ ] Validate native session transitions, aiming, both eyes, and comfort on the target headset.
+- [x] Validate native session transitions, aiming, both eyes, and comfort on the target headset.
 - [ ] Guard completion idempotence inside `Tree` and keep healing permanent.
 - [ ] Convert console-only victory into a win transition that stops spawning/shooting and offers a headset-visible result with controller-operated replay before the elaborate finale exists.
 - [ ] Reset trees, fruits, coroutines, effects, cooldown, and session statistics reliably on replay.

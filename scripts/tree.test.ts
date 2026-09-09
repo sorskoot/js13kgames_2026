@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import {test} from 'node:test';
 import {calculateNormals} from 'playcanvas';
 import {vertices, triangles} from '../src/lib/tree/data.ts';
+
+test('tree encoding preserves every original coordinate, color, and triangle index', () => {
+    const fingerprint = createHash('sha256')
+        .update(JSON.stringify([vertices, triangles]))
+        .digest('hex');
+    assert.equal(fingerprint, '7a9a3acf04e42d66a0bed289884280c9297df861ef7e987fd4eebd6bb26e2b0e');
+});
 
 test('fixed tree retains the original topology size and bounds', () => {
     assert.equal(vertices.length, 93 * 6);

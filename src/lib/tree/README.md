@@ -18,11 +18,18 @@ Multiple calls create instances of the same tree design.
 
 ## Asset Format
 
-[data.ts](data.ts) stores `vertices` in six-number records:
+[data.ts](data.ts) stores lossless numeric deltas and decodes them once on module
+initialization. Each vertex component is relative to the same component of the
+previous vertex (stride 6); each triangle corner is relative to the corresponding
+corner of the previous triangle (stride 3). The first record in each array is absolute.
+
+The exported `vertices` array contains six-number records:
 `[x * 10000, y * 10000, z * 10000, red, green, blue]`.
 Positions are rounded to 0.0001 units, with at most 0.00005 units of error per
 coordinate. Colors are rounded to 8-bit sRGB, with at most half a channel step
 of error. `triangles` contains zero-based vertex indices in the original winding.
+Delta encoding introduces no additional error; a regression fingerprint checks
+every decoded coordinate, color, and index against the original baked asset.
 
 [pc.ts](pc.ts) expands the triangles, calculates flat normals with PlayCanvas,
 and converts sRGB colors to linear RGB for the material. The GPU mesh is
