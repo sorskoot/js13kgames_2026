@@ -9,6 +9,8 @@ import {p13kFx, p13kPreload} from '@/lib/particles/particles.js';
 export interface FruitSpawnSettings {
     spawnRate: number;
     maxFruits: number;
+    lifetime?: number;
+    fruitsToHeal?: number;
     position: pc.Vec3;
     fruitColor: pc.Color;
 }
@@ -23,11 +25,11 @@ interface ActiveFruit {
 }
 
 const WAVES = [
-    [18, 1, 3, 16, 2],
-    [22, 2, 2.6, 14, 2],
-    [24, 2, 2.2, 12, 3],
-    [24, 3, 1.8, 10, 4],
-    [26, 3, 1.5, 9, 5]
+    [18, 1],
+    [22, 2],
+    [24, 2],
+    [24, 3],
+    [26, 3]
 ];
 
 export class FruitController extends pc.Script {
@@ -69,6 +71,7 @@ export class FruitController extends pc.Script {
     }
 
     registerTree(tree: Tree, settings: FruitSpawnSettings) {
+        tree.fruitsToHeal = settings.fruitsToHeal ?? 10;
         this.trees.push(tree);
         this.settings.push(settings);
     }
@@ -101,10 +104,10 @@ export class FruitController extends pc.Script {
             this.spawnTimes[index] -= dt;
             if (this.spawnTimes[index] <= 0) {
                 const treeIndex = this.waveTrees[index];
-                if (this.shouldSpawn(treeIndex, this.waveSettings[4])) {
-                    this.spawnFruit(treeIndex, this.waveSettings[3]);
+                if (this.shouldSpawn(treeIndex)) {
+                    this.spawnFruit(treeIndex);
                 }
-                this.spawnTimes[index] = this.waveSettings[2] * (0.8 + Math.random() * 0.4);
+                this.spawnTimes[index] = this.settings[treeIndex].spawnRate * (0.8 + Math.random() * 0.4);
             }
         }
     }
@@ -146,14 +149,14 @@ export class FruitController extends pc.Script {
         this.wave++;
     }
 
-    private shouldSpawn(treeIndex: number, maxFruits = this.settings[treeIndex].maxFruits): boolean {
+    private shouldSpawn(treeIndex: number): boolean {
         if (this.trees[treeIndex].isHealed) {
             return false;
         }
-        return this.activeFruits.filter(f => f.treeIndex === treeIndex).length < maxFruits;
+        return this.activeFruits.filter(f => f.treeIndex === treeIndex).length < this.settings[treeIndex].maxFruits;
     }
 
-    spawnFruit(treeIndex: number, lifetime = 10) {
+    spawnFruit(treeIndex: number, lifetime = this.settings[treeIndex].lifetime ?? 10) {
         const position = this.settings[treeIndex].position;
         const fruit = new pc.Entity('fruit');
         const radius = 0.22;

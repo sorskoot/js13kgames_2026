@@ -167,13 +167,15 @@ export class Game extends pc.Script {
             [8, 0, -84, 1, 0.55, 1],
             [-8, 0, 84, 0.55, 1, 1]
         ];
-        for (const [x, z, rotation, red, green, blue] of treeData) {
+        for (const [index, [x, z, rotation, red, green, blue]] of treeData.entries()) {
             const tree = new pc.Entity('tree');
             const treeScript = addScript<Tree>(tree, 'tree');
             this.trees.push(treeScript);
             this.fruitController.registerTree(treeScript, {
-                spawnRate: 3,
-                maxFruits: 5,
+                spawnRate: 3 - index * 0.4,
+                maxFruits: 2 + index,
+                lifetime: 16 - index * 2,
+                fruitsToHeal: 10 + index * 2,
                 position: new pc.Vec3(0, 3, 2),
                 fruitColor: new pc.Color(red, green, blue)
             });

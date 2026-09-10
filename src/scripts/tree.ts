@@ -14,7 +14,7 @@ export class Tree extends pc.Script {
     private healedEffect?: pc.Entity;
     private healedEffectTime = 0;
 
-    public spawnRate: number = 3; //seconds
+    public fruitsToHeal: number = 10;
 
     // State between 0 and 1. Goal is to get the tree healed to 1
     private state: number = 0;
@@ -49,7 +49,7 @@ export class Tree extends pc.Script {
      * @returns {boolean} True if the tree is fully healed, false otherwise.
      */
     hitFruit(): boolean {
-        this.state = Math.min(1, Math.round((this.state + 0.1) * 10) / 10);
+        this.state = Math.min(1, (Math.round(this.state * this.fruitsToHeal) + 1) / this.fruitsToHeal);
         this.updateMaterials();
         if (this.state >= 1 && !this.isHealed) {
             this.isHealed = true;
@@ -69,7 +69,7 @@ export class Tree extends pc.Script {
     }
 
     rotFruit() {
-        this.state = Math.max(0, Math.round((this.state - 0.1) * 10) / 10);
+        this.state = Math.max(0, (Math.round(this.state * this.fruitsToHeal) - 1) / this.fruitsToHeal);
         this.updateMaterials();
         // - do something with score / state
     }

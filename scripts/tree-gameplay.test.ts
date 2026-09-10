@@ -767,7 +767,8 @@ test('pause freezes in-flight fruit timers while effect cleanup continues', cont
     controller.initialize();
     controller.registerTree(tree, {
         spawnRate: 3,
-        maxFruits: 5,
+        maxFruits: 2,
+        lifetime: 20,
         position: new pc.Vec3(0, 3, 2),
         fruitColor: new pc.Color(1, 0, 0)
     });
@@ -795,8 +796,11 @@ test('pause freezes in-flight fruit timers while effect cleanup continues', cont
     assert.ok((fruit.entity.render!.material as pc.StandardMaterial).diffuse.equals(color));
     GameState.isPaused = false;
     controller.update(0.05);
-    assert.ok(fruit.life > 0.988 && fruit.life < 0.992);
+    assert.ok(fruit.life > 0.994 && fruit.life < 0.996);
     assert.equal(controller.getActiveFruits().length, 1);
+    controller.update(5);
+    assert.equal(controller.getActiveFruits().length, 2);
+    assert.ok(controller.spawnTimes[0] >= 2.4 && controller.spawnTimes[0] <= 3.6);
     controller.update(5);
     assert.equal(controller.getActiveFruits().length, 2);
 });
@@ -903,6 +907,22 @@ test('tree color restores with hits, fades with rot, and stays independent', con
         assert.ok(Math.abs(fadedColors[index] - grayColors[index] - difference * 0.4) < 0.000001);
     }
     assert.deepEqual(meshColors(otherTree.entity), grayColors);
+    const controller = new FruitController({app, entity: app.root});
+    controller.registerTree(otherTree, {
+        spawnRate: 1.4,
+        maxFruits: 6,
+        lifetime: 8,
+        fruitsToHeal: 18,
+        position: new pc.Vec3(0, 3, 2),
+        fruitColor: new pc.Color(1, 0, 0)
+    });
+    for (let hit = 0; hit < 17; hit++) {
+        otherTree.hitFruit();
+    }
+    assert.equal(otherTree.isHealed, false);
+    otherTree.rotFruit();
+    assert.equal(otherTree.hitFruit(), false);
+    assert.equal(otherTree.hitFruit(), true);
 });
 
 test('fruit stays outside the player-facing canopy on translated and rotated trees', context => {
