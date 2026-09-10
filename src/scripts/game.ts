@@ -42,14 +42,75 @@ export class Game extends pc.Script {
     private shootParticles =
         'P13K1|K64.7|1.32.55.50.0.0.100|0.0.70.0.0.1.35~K128.5|3.25.55.35.10.0.100|0.0.80.0.0.1.50|0.90.5500.70.30.1.12.6.12.0.100.0.0.-1.0.3300.150.30.180.60.90.300.117.12.35.4000.37.255.0.0.31.87.255.0.122.8.350.0.1.1.0.0.0.0.6.0.100.15.100.65.100.65.100.65.97.100.100.4.0.35.23.100.93.100.100.0~1.60.2200.110.50.0.25.25.25.0.100.0.0.1.0.5000.260.70.-450.20.400.700.82.5.35.18000.100.255.217.0.68.31.255.255.0.208.250.0.1.1.0.51.0.0.3.0.100.25.90.100.0.2.0.100.100.40';
 
+    private addOrchardGround() {
+        const soil = new pc.StandardMaterial();
+        soil.diffuse.set(0.24, 0.29, 0.28);
+        soil.update();
+        const points = 32;
+        const positions: number[] = [];
+        const indices: number[] = [];
+        for (let index = 0; index < points; index++) {
+            const angle = (index / points) * pc.math.DEG_TO_RAD * 360;
+            const x = Math.sin(angle);
+            const z = -Math.cos(angle);
+            positions.push(
+                x * 12,
+                -0.05,
+                z * 12,
+                x * 23,
+                2 + Math.sin(index * 1.7) * 1.3,
+                z * 23,
+                x * 36,
+                -0.2,
+                z * 36
+            );
+        }
+        for (let index = 0; index < points; index++) {
+            const next = (index + 1) % points;
+            const start = index * 3;
+            const end = next * 3;
+            indices.push(
+                start,
+                end,
+                start + 1,
+                start + 1,
+                end,
+                end + 1,
+                start + 1,
+                end + 1,
+                start + 2,
+                start + 2,
+                end + 1,
+                end + 2
+            );
+        }
+        const mesh = new pc.Mesh(this.app.graphicsDevice);
+        const faces = indices.flatMap(index => positions.slice(index * 3, index * 3 + 3));
+        mesh.setPositions(faces);
+        mesh.setNormals(
+            pc.calculateNormals(
+                faces,
+                indices.map((_, index) => index)
+            )
+        );
+        mesh.update(pc.PRIMITIVE_TRIANGLES);
+        const bank = new pc.Entity('orchard-boundary');
+        bank.addComponent('render', {meshInstances: [new pc.MeshInstance(mesh, soil)]});
+        this.app.root.addChild(bank);
+    }
+
     initialize() {
         this.sounds = new Soundfx(this.app.soundManager);
         p13kPreload(this.app, this.shootParticles);
-        this.app.scene.ambientLight = new pc.Color(0.4, 0.4, 0.4);
+        this.app.scene.ambientLight = new pc.Color(0.48, 0.5, 0.56);
+        this.app.scene.fog.type = pc.FOG_LINEAR;
+        this.app.scene.fog.color.set(0.66, 0.74, 0.79);
+        this.app.scene.fog.start = 14;
+        this.app.scene.fog.end = 38;
 
         this.cameraEntity = new pc.Entity('camera');
         this.camera = this.cameraEntity.addComponent('camera', {
-            clearColor: new pc.Color(0.2, 1.0, 1.0)
+            clearColor: new pc.Color(0.66, 0.74, 0.79)
         }) as pc.CameraComponent;
         this.cameraEntity.addComponent('audiolistener');
         this.app.root.addChild(this.cameraEntity);
@@ -73,8 +134,8 @@ export class Game extends pc.Script {
         const light = new pc.Entity('light');
         light.addComponent('light', {
             type: 'directional',
-            color: new pc.Color(1, 0.95, 0.85),
-            intensity: 2
+            color: new pc.Color(1, 0.96, 0.9),
+            intensity: 1.5
         });
         light.setEulerAngles(45, 30, 0);
         this.app.root.addChild(light);
@@ -96,10 +157,11 @@ export class Game extends pc.Script {
             type: 'plane',
             material: new pc.StandardMaterial()
         });
-        (groundPlane.render!.material as pc.StandardMaterial).diffuse = new pc.Color(0.05, 0.55, 0.35);
+        (groundPlane.render!.material as pc.StandardMaterial).diffuse = new pc.Color(0.27, 0.3, 0.29);
         groundPlane.render!.material.update();
-        groundPlane.setLocalScale(25, 1, 25);
+        groundPlane.setLocalScale(80, 1, 80);
         this.app.root.addChild(groundPlane);
+        this.addOrchardGround();
 
         this.fruitController = addScript<FruitController>(this.app.root, 'fruit-controller');
         this.fruitController.preloadHitEffect();

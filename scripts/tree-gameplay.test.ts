@@ -795,7 +795,7 @@ test('pause freezes in-flight fruit timers while effect cleanup continues', cont
     assert.ok((fruit.entity.render!.material as pc.StandardMaterial).diffuse.equals(color));
     GameState.isPaused = false;
     controller.update(0.05);
-    assert.equal(fruit.life, 0.99);
+    assert.ok(fruit.life > 0.988 && fruit.life < 0.992);
     assert.equal(controller.getActiveFruits().length, 1);
     controller.update(5);
     assert.equal(controller.getActiveFruits().length, 2);
@@ -821,7 +821,7 @@ test('adjacent fruit expiries each apply their penalty and free their slot in th
     const positions = controller
         .getActiveFruits()
         .map((fruit: {entity: pc.Entity}) => fruit.entity.getPosition().clone());
-    for (const fruit of controller.getActiveFruits()) fruit.life = 0.01;
+    for (const fruit of controller.getActiveFruits()) fruit.life = 0;
     GameState.isPaused = false;
     controller.update(0);
     controller.update(0.1);

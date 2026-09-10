@@ -45,7 +45,7 @@ export class FruitController extends pc.Script {
     private spawning = false;
     private wave = 0;
     private waveTime = 0;
-    private spawnTime = 0;
+    private spawnTimes: number[] = [];
     private breather = 0;
     private waveTrees: number[] = [];
     private focusAngle = 0;
@@ -102,16 +102,19 @@ export class FruitController extends pc.Script {
             return;
         }
         this.waveTime = Math.max(0, this.waveTime - dt);
-        this.spawnTime -= dt;
-        if (!this.waveTime || this.spawnTime > 0) {
+        if (!this.waveTime) {
             return;
         }
-        for (const treeIndex of this.waveTrees) {
-            if (this.shouldSpawn(treeIndex, this.waveSettings[4])) {
-                this.spawnFruit(treeIndex, this.waveSettings[3]);
+        for (let index = 0; index < this.waveTrees.length; index++) {
+            this.spawnTimes[index] -= dt;
+            if (this.spawnTimes[index] <= 0) {
+                const treeIndex = this.waveTrees[index];
+                if (this.shouldSpawn(treeIndex, this.waveSettings[4])) {
+                    this.spawnFruit(treeIndex, this.waveSettings[3]);
+                }
+                this.spawnTimes[index] = this.waveSettings[2] * (0.8 + Math.random() * 0.4);
             }
         }
-        this.spawnTime = this.waveSettings[2] * (0.8 + Math.random() * 0.4);
     }
 
     private beginWave() {
@@ -147,7 +150,7 @@ export class FruitController extends pc.Script {
             this.focusAngle = tree.angle;
         }
         this.waveTime = this.waveSettings[0];
-        this.spawnTime = 3;
+        this.spawnTimes = this.waveTrees.map(() => 3 + Math.random() * 0.8);
         this.waveMessage = `WAVE ${++this.wave}`;
         this.messageTime = 3;
     }
@@ -163,18 +166,20 @@ export class FruitController extends pc.Script {
         const position = this.settings[treeIndex].position;
         const fruit = new pc.Entity('fruit');
         const radius = 0.22;
+        const randomizedLifetime = lifetime * (0.85 + Math.random() * 0.3);
 
         this.activeFruits.push({
             entity: fruit,
             radius,
             treeIndex,
             life: 1,
-            decayRate: 0.1 / lifetime,
+            decayRate: 0.1 / randomizedLifetime,
             color: this.settings[treeIndex].fruitColor
         });
 
         const material = new pc.StandardMaterial();
-        material.diffuse = new pc.Color(0.55, 0.55, 0.55);
+        material.diffuse.copy(this.freshColor);
+        material.emissive.set(0.12, 0.12, 0.12);
         material.update();
 
         fruit.addComponent('render', {
@@ -276,6 +281,7 @@ export class FruitController extends pc.Script {
         return this.activeFruits;
     }
 
+    private freshColor = new pc.Color(0.82, 0.82, 0.78);
     private brownColor = new pc.Color(0.46, 0.24, 0.05, 1);
 
     private *updateFruits() {
@@ -290,12 +296,11 @@ export class FruitController extends pc.Script {
                 if (fruitData.life <= 0) {
                     this.rotFruit(fruitData.entity);
                 } else {
-                    (fruitData.entity.render!.material as pc.StandardMaterial).diffuse = new pc.Color().lerp(
-                        fruitData.color,
-                        this.brownColor,
-                        1 - fruitData.life
-                    );
-                    fruitData.entity.render?.material.update();
+                    const material = fruitData.entity.render!.material as pc.StandardMaterial;
+                    material.diffuse.lerp(this.freshColor, this.brownColor, 1 - fruitData.life);
+                    const glow = fruitData.life < 0.25 ? 0.1 + 0.18 * Math.sin(fruitData.life * 100) ** 2 : 0.12;
+                    material.emissive.set(glow, glow, glow);
+                    material.update();
                 }
             }
         }

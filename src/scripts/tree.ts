@@ -1,4 +1,5 @@
 import {createTree} from '@/lib/tree/pc.js';
+import {createGarden} from '@/lib/tree/garden.js';
 import {p13kFx} from '@/lib/particles/particles.js';
 import * as pc from 'playcanvas';
 
@@ -8,8 +9,8 @@ const TreeHealed =
 export class Tree extends pc.Script {
     static override scriptName = 'tree';
 
-    declare private mesh: pc.Mesh;
-    private colors: number[] = [];
+    private surfaces: {mesh: pc.Mesh; colors: number[]}[] = [];
+    declare private flowers: pc.Entity;
     private healedEffect?: pc.Entity;
     private healedEffectTime = 0;
 
@@ -21,9 +22,17 @@ export class Tree extends pc.Script {
 
     initialize() {
         const entity = createTree(this.app.graphicsDevice);
-        this.mesh = entity.render!.meshInstances[0].mesh;
-        this.mesh.getColors(this.colors);
         this.entity.addChild(entity);
+        const material = entity.render!.meshInstances[0].material;
+        const garden = createGarden(this.app.graphicsDevice, material);
+        this.entity.addChild(garden.ground);
+        this.flowers = garden.flowers;
+        for (const part of [entity, garden.ground, garden.flowers]) {
+            const mesh = part.render!.meshInstances[0].mesh;
+            const colors: number[] = [];
+            mesh.getColors(colors);
+            this.surfaces.push({mesh, colors});
+        }
         this.updateMaterials();
         this.once('destroy', () => this.healedEffect?.destroy());
     }
@@ -69,14 +78,19 @@ export class Tree extends pc.Script {
      * Updates the materials of the tree based on its current state.
      */
     updateMaterials() {
-        this.mesh.setColors(
-            this.colors.map((color, index) => {
-                const offset = index - (index % 3);
-                const gray = (this.colors[offset] + this.colors[offset + 1] + this.colors[offset + 2]) / 3;
-                return gray + (color - gray) * this.state;
-            }),
-            3
-        );
-        this.mesh.update();
+        for (const {mesh, colors} of this.surfaces) {
+            mesh.setColors(
+                colors.map((color, index) => {
+                    const offset = index - (index % 3);
+                    const gray = (colors[offset] + colors[offset + 1] + colors[offset + 2]) / 3;
+                    return gray + (color - gray) * this.state;
+                }),
+                3
+            );
+            mesh.update();
+        }
+        const growth = Math.max(0.001, this.state * 2 - 1);
+        this.flowers.enabled = this.state > 0.5;
+        this.flowers.setLocalScale(1, growth, 1);
     }
 }
