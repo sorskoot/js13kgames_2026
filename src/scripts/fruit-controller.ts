@@ -167,6 +167,7 @@ export class FruitController extends pc.Script {
         const fruit = new pc.Entity('fruit');
         const radius = 0.22;
         const randomizedLifetime = lifetime * (0.85 + Math.random() * 0.3);
+        const color = this.settings[treeIndex].fruitColor;
 
         this.activeFruits.push({
             entity: fruit,
@@ -174,11 +175,11 @@ export class FruitController extends pc.Script {
             treeIndex,
             life: 1,
             decayRate: 0.1 / randomizedLifetime,
-            color: this.settings[treeIndex].fruitColor
+            color
         });
 
         const material = new pc.StandardMaterial();
-        material.diffuse.copy(this.freshColor);
+        material.diffuse.copy(color);
         material.emissive.set(0.12, 0.12, 0.12);
         material.update();
 
@@ -281,7 +282,6 @@ export class FruitController extends pc.Script {
         return this.activeFruits;
     }
 
-    private freshColor = new pc.Color(0.82, 0.82, 0.78);
     private brownColor = new pc.Color(0.46, 0.24, 0.05, 1);
 
     private *updateFruits() {
@@ -297,7 +297,7 @@ export class FruitController extends pc.Script {
                     this.rotFruit(fruitData.entity);
                 } else {
                     const material = fruitData.entity.render!.material as pc.StandardMaterial;
-                    material.diffuse.lerp(this.freshColor, this.brownColor, 1 - fruitData.life);
+                    material.diffuse.lerp(fruitData.color, this.brownColor, 1 - fruitData.life);
                     const glow = fruitData.life < 0.25 ? 0.1 + 0.18 * Math.sin(fruitData.life * 100) ** 2 : 0.12;
                     material.emissive.set(glow, glow, glow);
                     material.update();
