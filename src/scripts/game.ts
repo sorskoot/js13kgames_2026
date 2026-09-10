@@ -10,6 +10,34 @@ import {createTextPlane} from '../lib/text/TextLab.js';
 
 // prettier-ignore
 const TitleText = [1,'RAINBOW\nREBOOT',1024,512,1,172,113,1,-15,59,100,16674041,15557732,90,10,1639991,0,2757963,0,10,52,10315002,100,19,5586055,1513245];
+const WinText = [
+    1,
+    'COLOR\nRESTORED',
+    1024,
+    512,
+    1,
+    172,
+    113,
+    1,
+    -15,
+    59,
+    100,
+    16674041,
+    15557732,
+    90,
+    10,
+    1639991,
+    0,
+    2757963,
+    0,
+    10,
+    52,
+    10315002,
+    100,
+    19,
+    5586055,
+    1513245
+];
 
 export class Game extends pc.Script {
     static override scriptName = 'game';
@@ -22,6 +50,8 @@ export class Game extends pc.Script {
     declare private fruitController: FruitController;
     declare private horn: pc.Entity;
     declare private title: ReturnType<typeof createTextPlane>;
+    private victory?: ReturnType<typeof createTextPlane>;
+    private groundMaterials: pc.StandardMaterial[] = [];
     private trees: Tree[] = [];
     private xrStarting = false;
     private poseReady = false;
@@ -44,6 +74,7 @@ export class Game extends pc.Script {
         const soil = new pc.StandardMaterial();
         soil.diffuse.set(0.24, 0.29, 0.28);
         soil.update();
+        this.groundMaterials.push(soil);
         const points = 32;
         const positions: number[] = [];
         const indices: number[] = [];
@@ -153,6 +184,7 @@ export class Game extends pc.Script {
         });
         (groundPlane.render!.material as pc.StandardMaterial).diffuse = new pc.Color(0.27, 0.3, 0.29);
         groundPlane.render!.material.update();
+        this.groundMaterials.push(groundPlane.render!.material as pc.StandardMaterial);
         groundPlane.setLocalScale(80, 1, 80);
         this.app.root.addChild(groundPlane);
         this.addOrchardGround();
@@ -214,6 +246,7 @@ export class Game extends pc.Script {
             this.onXREnd();
             this.app.graphicsDevice.off('resizecanvas', fitTitle);
             this.title.destroy();
+            this.victory?.destroy();
             shotRoot.destroy();
             this.shotPool.length = 0;
         });
@@ -290,6 +323,9 @@ export class Game extends pc.Script {
         this.xrStarting = false;
         this.inVR = true;
         this.title.entity.enabled = false;
+        if (this.victory) {
+            this.victory.entity.enabled = true;
+        }
         this.shotCooldown = 0;
         this.pauseXR();
     }
@@ -316,6 +352,9 @@ export class Game extends pc.Script {
         this.cameraEntity.setLocalPosition(0, 1.6, 0);
         this.cameraEntity.setLocalEulerAngles(0, 0, 0);
         this.title.entity.enabled = true;
+        if (this.victory) {
+            this.victory.entity.enabled = false;
+        }
         this.shotCooldown = 0;
         this.pauseXR();
     }
@@ -332,6 +371,7 @@ export class Game extends pc.Script {
             !this.enabled ||
             !this.entity.enabled ||
             !this.inVR ||
+            this.victory ||
             GameState.isPaused ||
             !this.poseReady ||
             this.shotCooldown > 0 ||
@@ -389,11 +429,79 @@ export class Game extends pc.Script {
         return {target, distance: closest};
     }
 
-    private onTreeHealed(tree: Tree) {
-        console.log(`Tree healed: ${tree.entity.name}`);
-        if (this.trees.every(tree => tree.isHealed)) {
-            console.log('All trees are healed! You Won!!');
+    private onTreeHealed() {
+        if (this.victory || !this.trees.every(tree => tree.isHealed)) {
+            return;
         }
+        this.victory = createTextPlane(pc, this.app, WinText, this.cameraEntity, 2.8, false);
+        const forward = this.cameraEntity.forward.clone();
+        forward.y = 0;
+        forward.normalize();
+        this.victory.entity.setEulerAngles(0, Math.atan2(-forward.x, -forward.z) * pc.math.RAD_TO_DEG, 0);
+        const position = forward.mulScalar(4).add(this.cameraEntity.getPosition());
+        position.y += 0.3;
+        this.victory.entity.setPosition(position);
+        this.victory.entity.enabled = this.inVR;
+        this.horn.enabled = false;
+        for (const material of this.groundMaterials) {
+            material.diffuse.set(0.19, 0.48, 0.16);
+            material.update();
+        }
+        this.camera.clearColor.set(0.24, 0.64, 0.94);
+        this.app.scene.fog.color.copy(this.camera.clearColor);
+        this.addRainbow();
+    }
+
+    private addRainbow() {
+        const positions: number[] = [];
+        const colors: number[] = [];
+        const indices: number[] = [];
+        const palette = [
+            [1, 0.18, 0.22],
+            [1, 0.5, 0.1],
+            [1, 0.88, 0.18],
+            [0.24, 0.84, 0.3],
+            [0.15, 0.65, 1],
+            [0.3, 0.3, 0.88],
+            [0.7, 0.28, 0.87]
+        ];
+        for (let band = 0; band < palette.length; band++) {
+            const start = positions.length / 3;
+            for (let segment = 0; segment <= 48; segment++) {
+                const angle = (segment / 48) * Math.PI;
+                for (let edge = 0; edge < 2; edge++) {
+                    const radius = 16 - (band + edge) * 0.3;
+                    positions.push(Math.cos(angle) * radius, Math.sin(angle) * radius, -24);
+                    colors.push(...palette[band]);
+                }
+                if (segment < 48) {
+                    const vertex = start + segment * 2;
+                    indices.push(vertex, vertex + 1, vertex + 2, vertex + 1, vertex + 3, vertex + 2);
+                }
+            }
+        }
+        const mesh = new pc.Mesh(this.app.graphicsDevice);
+        mesh.setPositions(positions);
+        mesh.setColors(colors, 3);
+        mesh.setIndices(indices);
+        mesh.update(pc.PRIMITIVE_TRIANGLES);
+        const material = new pc.StandardMaterial();
+        material.useLighting = material.useFog = material.useSkybox = material.useTonemap = false;
+        material.emissive.set(1, 1, 1);
+        material.emissiveVertexColor = true;
+        material.cull = pc.CULLFACE_NONE;
+        material.update();
+        const rainbow = new pc.Entity('rainbow');
+        rainbow.addComponent('render', {
+            meshInstances: [new pc.MeshInstance(mesh, material)],
+            castShadows: false,
+            receiveShadows: false
+        });
+        this.app.root.addChild(rainbow);
+        this.once('destroy', () => {
+            rainbow.destroy();
+            material.destroy();
+        });
     }
 
     private createShotEmitters(parent: pc.Entity) {

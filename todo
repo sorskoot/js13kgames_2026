@@ -14,7 +14,8 @@ Must Have:
         ✓ Visualize rotting of fruit @done(26-09-06 11:55)
         ✓ Score when fruit is hit @done(26-09-07 10:59)
         ✓ Remove fruit when hit @done(26-09-03 22:31)
-    ☐ Win state when all trees are healed: stop gameplay and provide headset-visible controller replay
+    ✓ Win state when all trees are healed: stop gameplay @done(26-09-10 23:22)
+        ~ Replay is done by refreshing the browser for now
     ✓ Start game when entering VR @done(26-09-08 14:23)
     ✓ Harden XR lifecycle and shooting (automated and browser checks) @done(26-09-08)
     ✓ Validate native XR session transitions, aiming, and comfort on the target headset @done(26-09-09 13:45)
@@ -30,8 +31,7 @@ Should Have:
         ✓ Better looking trees @done(26-09-08 14:23)
         ☐ Sky
     ✓ timeout on shooting (0.4s, pause-aware) @done(26-09-08)
-    ☐ Instead of creating fruit dynamically, use a pool of pre-created fruit entities
-    ☐ Pool fruit materials
+
 
 
 Could Have:
@@ -41,6 +41,9 @@ Could Have:
     ☐ Sprites or textures for the spheres
     ☐ Using shader to animate trees and grass
         ~ https://playcanvas.com/examples/#/shaders/trees
+    ☐ Restart button
+    ☐ Instead of creating fruit dynamically, use a pool of pre-created fruit entities
+    ☐ Pool fruit materials
 
 Would Like:
     ☐ Make the horn look better
