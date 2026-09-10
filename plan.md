@@ -1,6 +1,6 @@
 # Unicorns and Rainbows - Implementation Plan
 
-Updated 2026-09-08 against the current working tree, `todo`, `docs/GDD.md`, the build pipeline, and regression tests. XR lifecycle/shooting hardening is now implemented and automatically verified; later milestones remain planned. Uncommitted gameplay changes are included in the assessment.
+Updated 2026-09-10 against the current working tree, `todo`, `docs/GDD.md`, the build pipeline, and regression tests. XR lifecycle/shooting, wave pacing, audio feedback, particle caching, and shot pooling are implemented and automatically verified; completion/replay and later milestones remain planned.
 
 **Recommendation:** finish a fair, replayable loop, add one small mechanic that rewards choosing targets, then make restoration transform the whole scene. Keep the baked trees and existing particle runtime. A new recursive tree generator and a second particle system are no longer priorities.
 
@@ -10,26 +10,26 @@ Updated 2026-09-08 against the current working tree, `todo`, `docs/GDD.md`, the 
 
 | Area | Current implementation | Still missing |
 | --- | --- | --- |
-| VR | Controller trigger uses the engine-updated viewer-center camera pose for nearest-hit hitscan. Duplicate starts and failed starts are guarded; exit/visibility loss pauses gameplay, and a fresh visible tracked frame resumes it. Event listeners are removed on destruction. | Native headset session, aiming, stereo, and comfort validation. |
+| VR | Controller trigger uses the engine-updated viewer-center camera pose for nearest-hit hitscan. Duplicate starts and failed starts are guarded; exit/visibility loss pauses gameplay, and a fresh visible tracked frame resumes it. Event listeners are removed on destruction. | Maintain native headset validation after later gameplay and visual changes. |
 | Non-XR preview | Scene may render outside a headset. Desktop Play/Restart markup, input stubs, and keyboard escape handling have been removed. Only XR entry UI remains. | No desktop gameplay or framing requirement. |
 | Orchard | Five trees arranged in a forward-facing arc, rotated toward the player. Cone horn, green plane, bright cyan background, one directional light. | Cohesive sky, ground/horizon, scene framing, better horn. Not a finished gray-to-color world yet. |
 | Trees | `src/lib/tree/data.ts` is a fixed seed-42 baked asset: 93 source vertices, 178 triangles, quantized positions and RGB data. `pc.ts` expands it into a flat-shaded, vertex-colored mesh. | Distinct restoration milestones, environmental response, small visual variation. No runtime branching generator is needed. |
 | Restoration | Each tree independently desaturates its original mesh colors. Hits add 0.1, rot subtracts 0.1, rounded and clamped. `isHealed` and `tree:healed` exist. | A hard completion guard inside `Tree` itself; milestone feedback beyond continuous saturation. |
 | Fruit | Spawn every 3-5 seconds per tree, cap five active per tree, randomized local X/Y in front of the canopy at local Z=2. Both hit and expiry remove fruit and free capacity. | Pooling of fruit/entities/materials, clearer active/urgent visual states. |
-| Decay | Starts gray; decay interpolates from the assigned fruit color toward brown over roughly ten seconds of unpaused coroutine ticks. Rot costs 10% restoration. Pausing freezes in-flight spawn/decay timers; reverse iteration handles adjacent expiries in the same tick. | Gray-until-hit consistency. |
+| Decay | Fruit uses its assigned start color and interpolates toward brown over its unpaused lifetime. Rot costs 10% restoration. Pausing freezes in-flight spawn/decay timers; reverse iteration handles adjacent expiries in the same tick. | Urgency cue that does not rely on color alone. |
 | Tree completion | The controller clears remaining fruit on the completing hit, excludes healed trees from normal spawning, and avoids applying further rot through its normal path. | Idempotent completion regardless of caller, regression coverage for these behaviors. |
 | Win | `Game.onTreeHealed()` checks all five flags and logs a win. | A real win phase, stopped gameplay, visible celebration/result, replay. The TODO's checked win item means detection exists, not that the ending is finished. |
-| Feedback | Reused white beam connects the actual cone tip to the impact or a 20-unit viewer-ray miss endpoint for 0.2 seconds. Shots have a pause-aware 0.4-second cooldown and emissive horn recharge feedback. Hit effects use a separate cleanup scheduler that advances even when gameplay is paused. | Rainbow styling, emitter/texture reuse, audio, ambient/finale effects. |
+| Feedback | Four-color pooled particle trails connect the actual cone tip to the impact or a capped miss endpoint. Shots have a pause-aware 0.4-second cooldown and emissive horn recharge feedback. Cached particle templates/textures and pooled shot emitters avoid per-shot setup; hit effects use a separate cleanup scheduler that advances even when gameplay is paused. Synthesized shot and positional fruit-hit effects stop on XR pause. | Rot and completion sound effects, mute, ambient/finale effects. |
 | State | XR start/end/visibility/update events control session state and pose readiness. `GameState.isPaused` gates gameplay timers and input; effect cleanup is independent. | Add a won phase without allowing XR resume to restart finished gameplay. |
 
 ### Build and Tests
 
-- `npm run build`: **8,417-byte `dist/Unicorn.zip`**, **63.2%** of the **13,312-byte** limit; **4,895 bytes remain**. Build reports a 20.8KB minified `b.js`.
-- Before XR hardening: 8,051 bytes. This slice adds **366 compressed bytes net**, including desktop-stub removal. Compared with the 3,602-byte snapshot from 2026-09-06, total growth is **4,815 bytes**.
+- `npm run build`: **11,588-byte `dist/Unicorn.zip`**, **87.0%** of the **13,312-byte** limit; **1,724 bytes remain**. Build reports a 33.7KB minified `b.js`.
+- The earlier 8,417-byte XR-hardening baseline is superseded by measured wave pacing, title/audio, tree/garden, particle-cache, and shot-pooling delivery. Measure each remaining feature against the 11,588-byte archive; compression effects are non-additive.
 - `npm run lint`: passed.
-- `node --test scripts/tree.test.ts scripts/tree-gameplay.test.ts`: **14/14 passed**. Coverage includes the previous mesh/restoration/placement checks plus session rejection/re-entry/visibility, entry UI and listener cleanup, the actual engine viewer-pose update, nearest-hit geometry, beam endpoints, cooldown/recharge reset, paused timers, and simultaneous expiry.
-- Browser smoke test with temporary external XR-state simulation: real controller event produced one hit and burst, cooldown rejected a duplicate, pause hid the beam, effects cleaned up, no page errors, and nonblank canvas pixels. No testing controls or desktop support were shipped. The browser engine reported 2.21.3; headless tests use the installed npm engine.
-- Native headset behavior, comfort/performance, completion idempotence, and win/restart are **not** verified by these tests. The browser simulation is not a substitute for on-device validation.
+- `node --test scripts/tree.test.ts scripts/tree-gameplay.test.ts scripts/particles.test.ts`: **36/36 passed**. Coverage includes mesh/restoration/placement, session rejection/re-entry/visibility, entry UI/listener cleanup, engine viewer-pose update, nearest-hit geometry, beam endpoints, cooldown/recharge reset, paused timers, simultaneous expiry, particle caching, and shot-pool reuse.
+- Native headset session transitions, aiming, and comfort were validated on 2026-09-09. Revalidate those device-sensitive behaviors after subsequent gameplay or visual changes; headless/browser checks are not substitutes.
+- Completion idempotence and win/restart remain unimplemented and therefore unverified.
 - The earlier non-XR preview inspection is not an XR playtest and does not establish a camera/framing defect to fix. Judge framing, scale, and target visibility from the tracked headset view in both eyes.
 
 The production ZIP contains generated HTML and bundled game JavaScript, including baked mesh data and our particle runtime. The hosted PlayCanvas engine is excluded by the existing WebXR build setup. Engine implementation bytes are excluded; our configuration, helpers, shaders, geometry data, and ZIP overhead still count. Engine features also still cost GPU/CPU time. Confirm the permitted engine URL/version and hosted availability before submission.
