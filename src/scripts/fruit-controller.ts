@@ -40,8 +40,6 @@ export class FruitController extends pc.Script {
     private settings: FruitSpawnSettings[] = [];
 
     private activeFruits: Array<ActiveFruit> = [];
-    public waveMessage = '';
-    private messageTime = 0;
     private spawning = false;
     private wave = 0;
     private waveTime = 0;
@@ -62,10 +60,6 @@ export class FruitController extends pc.Script {
 
     update(dt: number) {
         if (this.coroutineManager && !GameState.isPaused) {
-            this.messageTime = Math.max(0, this.messageTime - dt);
-            if (!this.messageTime) {
-                this.waveMessage = '';
-            }
             this.coroutineManager.update(dt);
             if (this.spawning) {
                 this.updateWaves(dt);
@@ -89,8 +83,6 @@ export class FruitController extends pc.Script {
         }
         this.waveTime = 0;
         this.breather = 4;
-        this.waveMessage = 'TREE RESTORED';
-        this.messageTime = 4;
     }
 
     private updateWaves(dt: number) {
@@ -151,8 +143,7 @@ export class FruitController extends pc.Script {
         }
         this.waveTime = this.waveSettings[0];
         this.spawnTimes = this.waveTrees.map(() => 3 + Math.random() * 0.8);
-        this.waveMessage = `WAVE ${++this.wave}`;
-        this.messageTime = 3;
+        this.wave++;
     }
 
     private shouldSpawn(treeIndex: number, maxFruits = this.settings[treeIndex].maxFruits): boolean {
