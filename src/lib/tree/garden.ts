@@ -42,12 +42,11 @@ export function createGarden(device: pc.GraphicsDevice, material: pc.Material) {
         triangle(inner, outerNext, innerNext, color);
         const [x, , z] = point(angle, 1.4 + (index % 3) * 0.12, 0);
         for (let blade = -1; blade <= 1; blade++) {
-            triangle(
-                [x - 0.09, 0.03, z + blade * 0.07],
-                [x + 0.09, 0.03, z + blade * 0.07],
-                [x + blade * 0.16, 0.25 + (index % 3) * 0.08, z + 0.06],
-                [0.2, 0.42, 0.1]
-            );
+            const base = z + blade * 0.07;
+            const height = 0.25 + (index % 3) * 0.08;
+            const grass = [0.2, 0.42, 0.1];
+            triangle([x - 0.09, 0.03, base], [x + 0.09, 0.03, base], [x + blade * 0.16, height, base + 0.06], grass);
+            triangle([x, 0.03, base - 0.09], [x, 0.03, base + 0.09], [x + 0.06, height, base + blade * 0.16], grass);
         }
     }
     const ground = part('garden');

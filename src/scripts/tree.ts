@@ -23,7 +23,7 @@ export class Tree extends pc.Script {
     initialize() {
         const entity = createTree(this.app.graphicsDevice);
         this.entity.addChild(entity);
-        const material = entity.render!.meshInstances[0].material;
+        const material = entity.render!.meshInstances[0].material as pc.StandardMaterial;
         const garden = createGarden(this.app.graphicsDevice, material);
         this.entity.addChild(garden.ground);
         this.flowers = garden.flowers;

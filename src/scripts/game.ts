@@ -166,70 +166,27 @@ export class Game extends pc.Script {
         this.fruitController = addScript<FruitController>(this.app.root, 'fruit-controller');
         this.fruitController.preloadHitEffect();
 
-        const tree = new pc.Entity('tree');
-        const treeScript = addScript<Tree>(tree, 'tree');
-        this.trees.push(treeScript);
-        this.fruitController.registerTree(treeScript, {
-            spawnRate: 3,
-            maxFruits: 5,
-            position: new pc.Vec3(0, 3, 2),
-            fruitColor: new pc.Color(1, 0.55, 0.55)
-        });
-
-        this.app.root.addChild(tree);
-        tree.setPosition(0, 0, -10);
-
-        const tree2 = new pc.Entity('tree');
-        const tree2Script = addScript<Tree>(tree2, 'tree');
-        this.trees.push(tree2Script);
-        this.fruitController.registerTree(tree2Script, {
-            spawnRate: 3,
-            maxFruits: 5,
-            position: new pc.Vec3(0, 3, 2),
-            fruitColor: new pc.Color(0.55, 1, 0.55)
-        });
-        this.app.root.addChild(tree2);
-        tree2.setPosition(6, 0, -8);
-        tree2.setEulerAngles(0, -45, 0);
-
-        const tree3 = new pc.Entity('tree');
-        const tree3Script = addScript<Tree>(tree3, 'tree');
-        this.trees.push(tree3Script);
-        this.fruitController.registerTree(tree3Script, {
-            spawnRate: 3,
-            maxFruits: 5,
-            position: new pc.Vec3(0, 3, 2),
-            fruitColor: new pc.Color(0.55, 0.55, 1)
-        });
-        this.app.root.addChild(tree3);
-        tree3.setPosition(-6, 0, -8);
-        tree3.setEulerAngles(0, 45, 0);
-
-        const tree4 = new pc.Entity('tree');
-        const tree4Script = addScript<Tree>(tree4, 'tree');
-        this.trees.push(tree4Script);
-        this.fruitController.registerTree(tree4Script, {
-            spawnRate: 3,
-            maxFruits: 5,
-            position: new pc.Vec3(0, 3, 2),
-            fruitColor: new pc.Color(1, 0.55, 1)
-        });
-        this.app.root.addChild(tree4);
-        tree4.setPosition(8, 0, 0);
-        tree4.setEulerAngles(0, -90, 0);
-
-        const tree5 = new pc.Entity('tree');
-        const tree5Script = addScript<Tree>(tree5, 'tree');
-        this.trees.push(tree5Script);
-        this.fruitController.registerTree(tree5Script, {
-            spawnRate: 3,
-            maxFruits: 5,
-            position: new pc.Vec3(0, 3, 2),
-            fruitColor: new pc.Color(0.55, 1, 1)
-        });
-        this.app.root.addChild(tree5);
-        tree5.setPosition(-8, 0, 0);
-        tree5.setEulerAngles(0, 90, 0);
+        const treeData = [
+            [0, -10, 0, 1, 0.55, 0.55],
+            [6, -8, -32, 0.55, 1, 0.55],
+            [-6, -8, 32, 0.55, 0.55, 1],
+            [8, 0, -84, 1, 0.55, 1],
+            [-8, 0, 84, 0.55, 1, 1]
+        ];
+        for (const [x, z, rotation, red, green, blue] of treeData) {
+            const tree = new pc.Entity('tree');
+            const treeScript = addScript<Tree>(tree, 'tree');
+            this.trees.push(treeScript);
+            this.fruitController.registerTree(treeScript, {
+                spawnRate: 3,
+                maxFruits: 5,
+                position: new pc.Vec3(0, 3, 2),
+                fruitColor: new pc.Color(red, green, blue)
+            });
+            this.app.root.addChild(tree);
+            tree.setPosition(x, 0, z);
+            tree.setEulerAngles(0, rotation, 0);
+        }
 
         const shotRoot = new pc.Entity('shots');
         shotRoot.enabled = false;
