@@ -1,6 +1,6 @@
 # JS13KGames 2026
 
-![ZIP Size](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSorskoot%2FYOUR_REPO%2Fbadge%2Fbadge.json)
+![ZIP Size](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSorskoot%2Fjs13kgames_2026%2Fbadge%2Fbadge.json)
 
 A tiny WebXR game for JS13KGames 2026. JS13K is a game jam where entries must
 fit in 13 KB of zipped JavaScript and assets; see the official site at
