@@ -431,6 +431,7 @@ export class Game extends pc.Script {
     }
 
     private onTreeHealed() {
+        this.sounds.play(SFX.TREE_HEALED);
         if (this.victory || !this.trees.every(tree => tree.isHealed)) {
             return;
         }

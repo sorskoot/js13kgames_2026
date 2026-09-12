@@ -3,13 +3,15 @@ import * as pc from 'playcanvas';
 
 export enum SFX {
     SHOOT,
-    HIT_FRUIT
+    HIT_FRUIT,
+    TREE_HEALED
 }
 
 export class Soundfx {
     private sounds: pc.Sound[] = [];
     private instances = new Set<pc.SoundInstance>();
     private music?: ReturnType<typeof AMB>;
+    private t = (i: number, n: number): number => (n - i) / n;
 
     constructor(private manager: pc.SoundManager) {}
 
@@ -30,6 +32,26 @@ export class Soundfx {
             0.45,
             seconds => (Math.sin(2 * Math.PI * 880 * seconds) + 0.4 * Math.sin(2 * Math.PI * 1320 * seconds)) / 1.4
         );
+        this.createSound(context, 0.78, seconds => {
+            seconds *= 48_000;
+            return (
+                (() => {
+                    var K = [0.034247, 0.051312, 0.068493, 0.102624, 0.136987];
+                    var L = 5520;
+                    var X = (seconds / L) | 0;
+                    if (X >= K.length) return null;
+                    if (!K[X]) return 0;
+                    var j = seconds - X * L;
+                    var q = 1 - j / L;
+                    return Math.sin(j * K[X]) * q;
+                })()! *
+                    0.8 +
+                (seconds > 37440
+                    ? 0
+                    : (seconds > 36960 ? 0 : Math.sin(0.04071 * seconds + 0.000001 * seconds * seconds)) *
+                      this.t(seconds, 37440))
+            );
+        });
     }
 
     startMusic() {
