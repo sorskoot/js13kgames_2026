@@ -1,3 +1,4 @@
+import {AMB} from '@/lib/music.js';
 import * as pc from 'playcanvas';
 
 export enum SFX {
@@ -8,6 +9,7 @@ export enum SFX {
 export class Soundfx {
     private sounds: pc.Sound[] = [];
     private instances = new Set<pc.SoundInstance>();
+    private music?: ReturnType<typeof AMB>;
 
     constructor(private manager: pc.SoundManager) {}
 
@@ -28,6 +30,14 @@ export class Soundfx {
             0.45,
             seconds => (Math.sin(2 * Math.PI * 880 * seconds) + 0.4 * Math.sin(2 * Math.PI * 1320 * seconds)) / 1.4
         );
+    }
+
+    startMusic() {
+        this.init();
+        const context = this.manager.context;
+        if (context) {
+            this.music ??= AMB(context);
+        }
     }
 
     private createSound(context: AudioContext, duration: number, sample: (seconds: number) => number) {
@@ -60,6 +70,8 @@ export class Soundfx {
     }
 
     stop() {
+        this.music?.stop();
+        this.music = undefined;
         for (const instance of this.instances) {
             instance.stop();
         }

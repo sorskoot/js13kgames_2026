@@ -343,6 +343,7 @@ export class Game extends pc.Script {
         if (this.inVR && !this.poseReady && this.app.xr?.visibilityState === 'visible') {
             this.poseReady = true;
             GameState.isPaused = false;
+            this.sounds.startMusic();
         }
     }
 
