@@ -897,9 +897,15 @@ test('tree color restores with hits, fades with rot, and stays independent', con
     const halfwayColors = meshColors(tree.entity);
     tree.rotFruit();
     const fadedColors = meshColors(tree.entity);
+    let healedEvents = 0;
+    app.root.on('tree:healed', () => healedEvents++);
     for (let hit = 0; hit < 6; hit++) tree.hitFruit();
     assert.equal(tree.isHealed, true);
     const restoredColors = meshColors(tree.entity);
+    tree.rotFruit();
+    tree.hitFruit();
+    assert.deepEqual(meshColors(tree.entity), restoredColors);
+    assert.equal(healedEvents, 1);
     assert.notDeepEqual(restoredColors, grayColors);
     for (let index = 0; index < grayColors.length; index++) {
         const difference = restoredColors[index] - grayColors[index];

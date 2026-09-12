@@ -16,6 +16,7 @@ Must Have:
         ✓ Remove fruit when hit @done(26-09-03 22:31)
     ✓ Win state when all trees are healed: stop gameplay @done(26-09-10 23:22)
         ~ Replay is done by refreshing the browser for now
+    ✓ Make healed trees permanently immune to later hit/rot state changes @done(26-09-12 23:08)
     ✓ Start game when entering VR @done(26-09-08 14:23)
     ✓ Harden XR lifecycle and shooting (automated and browser checks) @done(26-09-08)
     ✓ Validate native XR session transitions, aiming, and comfort on the target headset @done(26-09-09 13:45)
@@ -36,17 +37,25 @@ Should Have:
 
 Could Have:
     ☐ Background environment (mountains, forrest, etc)
-    ☐ Music
+    ✓ Music @done(26-09-12)
     ✓ Add visualization of cooldown for the horn (emissive recharge) @done(26-09-08)
     ☐ Sprites or textures for the spheres
     ☐ Using shader to animate trees and grass
         ~ https://playcanvas.com/examples/#/shaders/trees
     ☐ Restart button
+    ☐ Center the end text toward the first tree, matching the distant rainbow
     ☐ Instead of creating fruit dynamically, use a pool of pre-created fruit entities
     ☐ Pool fruit materials
 
 Would Like:
     ☐ Make the horn look better
     ☐ option to mute sounds
+
+Release Gate:
+    ✓ Automated regression suite: 36/36 @done(26-09-12)
+    ✓ TypeScript lint @done(26-09-12)
+    ✓ Production ZIP under 13,312 bytes: 12,696 bytes (616 bytes free) @done(26-09-12)
+    ☐ Test the exact production ZIP on the target headset
+    ☐ Verify uploaded ZIP contents, live preview, repository URL, artwork/story, and WebXR submission fields
 
 Bugs:

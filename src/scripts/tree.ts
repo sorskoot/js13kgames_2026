@@ -58,6 +58,9 @@ export class Tree extends pc.Script {
      * @returns {boolean} True if the tree is fully healed, false otherwise.
      */
     hitFruit(): boolean {
+        if (this.isHealed) {
+            return true;
+        }
         this.state = Math.min(1, (Math.round(this.state * this.fruitsToHeal) + 1) / this.fruitsToHeal);
         this.updateMaterials();
         if (this.state >= 1 && !this.isHealed) {
@@ -89,6 +92,9 @@ export class Tree extends pc.Script {
     }
 
     rotFruit() {
+        if (this.isHealed) {
+            return;
+        }
         this.state = Math.max(0, (Math.round(this.state * this.fruitsToHeal) - 1) / this.fruitsToHeal);
         this.updateMaterials();
         // - do something with score / state
